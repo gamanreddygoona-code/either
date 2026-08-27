@@ -54,9 +54,9 @@
     "workbox-window": "^7.4.1"
   },
   "build": {
-    "appId": "com.littlebird.workspace",
-    "productName": "Littlebird AI Workspace",
-    "copyright": "Copyright © 2026 Littlebird",
+    "appId": "com.either.workspace",
+    "productName": "Either AI Workspace",
+    "copyright": "Copyright © 2026 Either AI",
     "directories": {
       "output": "release",
       "buildResources": "public"
@@ -81,21 +81,21 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "portable",
+        "nsis"
       ],
       "icon": "public/icons/icon-512.png",
-      "artifactName": "Littlebird-Setup-${version}.${ext}"
+      "artifactName": "Either-AI-Setup-${version}.${ext}"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Littlebird AI Workspace"
+      "shortcutName": "Either AI Workspace"
     },
     "portable": {
-      "artifactName": "Littlebird-Portable-${version}.exe"
+      "artifactName": "Either-AI-Workspace.exe"
     }
   }
 }

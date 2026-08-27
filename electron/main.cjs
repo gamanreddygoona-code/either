@@ -2,6 +2,17 @@ const { app, BrowserWindow, Menu, Tray, shell, nativeImage, ipcMain } = require(
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const os = require('os');
+
+// Set isolated user data to avoid Windows cache lock conflicts
+try {
+  const customUserData = path.join(os.homedir(), 'AppData', 'Local', 'EitherAIWorkspace');
+  if (!fs.existsSync(customUserData)) fs.mkdirSync(customUserData, { recursive: true });
+  app.setPath('userData', customUserData);
+} catch (e) {}
+
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.commandLine.appendSwitch('no-sandbox');
 
 let mainWindow = null;
 let tray = null;
