@@ -1,0 +1,28 @@
+[
+  {
+    "id": "srv-1787843137164",
+    "name": "My VPS - Nuremberg",
+    "host": "65.108.91.110",
+    "port": 8080,
+    "type": "vps-cloud",
+    "status": "online",
+    "uptime": "just added",
+    "cpuUsage": 0,
+    "memoryUsage": 0,
+    "activeDeployments": [],
+    "lastHeartbeat": "2026-08-27 15:05:37"
+  },
+  {
+    "id": "srv-1787847881497",
+    "name": "Windows Desktop — DESKTOP-BK4JKUM",
+    "host": "127.0.0.1",
+    "port": 3000,
+    "type": "local-wifi",
+    "status": "online",
+    "uptime": "just added",
+    "cpuUsage": 0,
+    "memoryUsage": 0,
+    "activeDeployments": [],
+    "lastHeartbeat": "2026-08-27 16:24:41"
+  }
+]

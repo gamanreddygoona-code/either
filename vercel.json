@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --sourcemap --outfile=dist/server.vercel.cjs",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/index.mjs": {
+      "includeFiles": "dist/server.vercel.cjs"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/auth/(.*)", "destination": "/api" }
+  ]
+}

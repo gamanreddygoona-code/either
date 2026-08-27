@@ -1,0 +1,12 @@
+.env
+.env.local
+.oauth
+node_modules
+dist
+release
+*.exe
+*.zip
+*.lnk
+.azure
+.freebuff
+*.log
