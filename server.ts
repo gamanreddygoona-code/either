@@ -108,11 +108,9 @@ setInterval(logTelemetry, 60000);
 /* ================= Gemini (real) ================= */
 
 const CANDIDATE_MODELS = [
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-1.5-pro",
   process.env.GEMINI_MODEL
 ].filter(Boolean) as string[];
 
