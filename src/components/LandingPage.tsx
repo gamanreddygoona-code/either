@@ -61,32 +61,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenTrad
     return()=> nodes.forEach((n:any)=>{ try{ n.vanillaTilt?.destroy(); }catch{} });
   },[]);
 
-  const handleDownload = async ()=>{
-    // Robust download: try direct anchor, fallback to window.open + toast
-    try {
-      // First try to fetch to ensure server is reachable, then trigger blob download to avoid popup blocker
-      const res = await fetch('/download/windows', { method: 'HEAD' });
-      if (!res.ok) throw new Error('no file');
-      // Trigger actual download via hidden anchor
-      const a = document.createElement('a');
-      a.href = '/download/windows';
-      a.setAttribute('download', 'Littlebird-Setup.exe');
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setCopied('dl');
-      setTimeout(()=> setCopied(null), 2500);
-    } catch {
-      // Fallback: open in new tab (lets browser handle Content-Disposition)
-      window.open('/download/windows', '_blank');
-      setCopied('dl');
-      setTimeout(()=> setCopied(null), 2500);
-    }
-    // Also scroll to install section for alternative 1-line install
-    setTimeout(()=> document.getElementById('install')?.scrollIntoView({ behavior:'smooth' }), 900);
+  const handleDownload = () => {
+    // 1-click cloud desktop install via PowerShell
+    copy(ps, 'dl');
+    const a = document.createElement('a');
+    a.href = '/install.ps1';
+    a.setAttribute('download', 'install-either.ps1');
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => {
+      document.getElementById('install')?.scrollIntoView({ behavior: 'smooth' });
+    }, 600);
   };
-  const copy = (t:string,k:string)=>{ navigator.clipboard.writeText(t); setCopied(k); setTimeout(()=>setCopied(null),1600); };
-  const ps='irm http://127.0.0.1:3000/install.ps1 | iex';
+  const copy = (t: string, k: string) => {
+    navigator.clipboard.writeText(t);
+    setCopied(k);
+    setTimeout(() => setCopied(null), 2000);
+  };
+  const ps = 'irm https://either-ai.vercel.app/install.ps1 | iex';
 
   return (
     <div className="min-h-screen w-full bg-[#030308] text-white font-sans selection:bg-violet-500 selection:text-white overflow-x-hidden">
@@ -204,22 +197,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenTrad
         </div>
       </section>
 
-      {/* Install — premium dark, download app only */}
+      {/* Install — 100% Cloud Connected Native App */}
       <section id="install" className="max-w-[980px] mx-auto px-4 sm:px-6 pb-10">
         <div className="rounded-[24px] bg-white text-stone-900 p-6 sm:p-8 shadow-[0_24px_64px_rgba(0,0,0,0.28)] border border-stone-200">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h3 className="font-serif font-bold text-xl flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Download Premium Desktop App</h3>
-              <p className="text-sm text-stone-600 mt-1">No web UI — native desktop only. Premium bird card included.</p>
-              <div className="flex items-center gap-3 mt-3 text-[11px] font-mono text-stone-500"><span>PWA + Electron</span><span>•</span><span>Win 10/11 x64</span><span>•</span><span className="text-emerald-600 font-bold">✓ Premium UI</span></div>
+              <h3 className="font-serif font-bold text-xl flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Either AI Windows Desktop App</h3>
+              <p className="text-sm text-stone-600 mt-1">Runs 100% on our Sovereign Cloud Servers. Zero terminal or local server commands required.</p>
+              <div className="flex items-center gap-3 mt-3 text-[11px] font-mono text-stone-500"><span>100% Cloud Connected</span><span>•</span><span>Windows 10/11 x64</span><span>•</span><span className="text-emerald-600 font-bold">✓ Ready to Use</span></div>
             </div>
             <button onClick={handleDownload} className="px-7 py-3.5 rounded-2xl bg-stone-900 text-white font-bold text-sm inline-flex items-center gap-2 hover:bg-black shadow-xl cursor-pointer shrink-0">
-              <Download className="w-4 h-4" /> Download App
+              <Download className="w-4 h-4" /> Download 1-Click Launcher
             </button>
           </div>
           <div className="mt-6 flex items-center gap-2 p-3 rounded-xl bg-stone-50 border border-stone-200 font-mono text-xs text-stone-600 overflow-x-auto">
-            <Terminal className="w-3.5 h-3.5 shrink-0" /><span className="truncate">Double-click Desktop shortcut → Littlebird opens as native premium window</span>
-            <button onClick={()=> copy(ps,'ps2')} className="ml-auto px-2.5 py-1 rounded-lg bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs flex items-center gap-1.5 shrink-0 cursor-pointer">{copied==='ps2'?<Check className="w-3.5 h-3.5 text-emerald-500" />:<Copy className="w-3.5 h-3.5" />}<span className="hidden sm:inline">{copied==='ps2'?'Copied':'Copy path'}</span></button>
+            <Terminal className="w-3.5 h-3.5 shrink-0 text-violet-600" /><span className="truncate">{ps}</span>
+            <button onClick={()=> copy(ps,'ps2')} className="ml-auto px-2.5 py-1 rounded-lg bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs flex items-center gap-1.5 shrink-0 cursor-pointer">{copied==='ps2'?<Check className="w-3.5 h-3.5 text-emerald-500" />:<Copy className="w-3.5 h-3.5" />}<span className="hidden sm:inline">{copied==='ps2'?'Copied':'Copy Command'}</span></button>
           </div>
         </div>
       </section>
