@@ -1336,8 +1336,17 @@ let googleTokens: { access_token?: string; refresh_token?: string; expiry: numbe
 function googleOAuthConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
-function googleRedirectUri() {
-  return process.env.GOOGLE_REDIRECT_URI || `http://localhost:${PORT}/auth/google/callback`;
+function googleRedirectUri(req?: any) {
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
+  if (req) {
+    const host = req.get ? req.get("host") : (req.headers && req.headers.host);
+    if (host && host.includes("vercel.app")) return `https://${host}/auth/google/callback`;
+    if (host) {
+      const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+      return `${proto}://${host}/auth/google/callback`;
+    }
+  }
+  return `http://localhost:${PORT}/auth/google/callback`;
 }
 function loadGoogleTokens() {
   try {
@@ -1477,7 +1486,7 @@ app.get("/auth/google", (req, res) => {
 
   const url = new URL(GOOGLE_AUTH_BASE);
   url.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID!);
-  url.searchParams.set("redirect_uri", googleRedirectUri());
+  url.searchParams.set("redirect_uri", googleRedirectUri(req));
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", GMAIL_SCOPES);
   url.searchParams.set("access_type", "offline");
@@ -1505,7 +1514,7 @@ app.get("/auth/google/callback", async (req, res) => {
           code,
           client_id: process.env.GOOGLE_CLIENT_ID,
           client_secret: process.env.GOOGLE_CLIENT_SECRET,
-          redirect_uri: googleRedirectUri(),
+          redirect_uri: googleRedirectUri(req),
           grant_type: "authorization_code",
         }),
         signal: AbortSignal.timeout(10000),
