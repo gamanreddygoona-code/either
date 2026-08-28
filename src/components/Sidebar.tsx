@@ -237,13 +237,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             id="sidebar-browser-agent-btn"
             onClick={() => onSelectView("browser-agent")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "browser-agent"
                 ? "bg-[#eee8dc] text-stone-900 font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Globe className="w-4 h-4 text-cyan-600 shrink-0" />
             <div className="flex items-center justify-between w-full">
               <span>Browser AI Agent</span>
               <span className="text-[9px] bg-cyan-100 text-cyan-800 font-bold px-1.5 py-0.2 rounded font-mono">LIVE</span>
@@ -254,13 +253,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             id="sidebar-sandbox-btn"
             onClick={() => onSelectView("sandbox")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "sandbox"
                 ? "bg-stone-900 text-white font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Terminal className={`w-4 h-4 shrink-0 ${activeView==="sandbox"?"text-white":"text-stone-600"}`} />
             <div className="flex items-center justify-between w-full">
               <span>Sandbox</span>
               <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-mono ${activeView==="sandbox"?"bg-white text-stone-900":"bg-stone-900 text-white"}`}>RUN</span>
@@ -271,13 +269,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             id="sidebar-video-swarm-btn"
             onClick={() => onSelectView("video-swarm")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "video-swarm"
                 ? "bg-violet-600 text-white font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Film className={`w-4 h-4 shrink-0 ${activeView==="video-swarm"?"text-white":"text-violet-600"}`} />
             <div className="flex items-center justify-between w-full">
               <span>Movie Swarm</span>
               <span className="text-[9px] bg-violet-100 text-violet-800 font-bold px-1.5 py-0.2 rounded font-mono">Veo 3 • 4×</span>
