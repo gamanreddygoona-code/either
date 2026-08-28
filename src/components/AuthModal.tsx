@@ -48,46 +48,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = () => {
     setLoading(true);
-    setSuccessMsg("");
-    try {
-      const result = await signInWithGoogle();
-      const googleUser = result?.user;
-      const updated: UserProfile = {
-        ...user,
-        name: googleUser?.displayName || googleUser?.name || "Gaman Sai",
-        email: googleUser?.email || "gamanreddy.goona@gmail.com",
-        avatarUrl: googleUser?.photoURL || googleUser?.avatarUrl || "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
-        isAuthenticated: true,
-      };
-      onUserUpdate(updated);
-      try {
-        localStorage.setItem("either_user", JSON.stringify(updated));
-      } catch (err) {}
-      setSuccessMsg("Signed in with Google successfully!");
-      setTimeout(() => {
-        onClose();
-      }, 900);
-    } catch (e) {
-      console.warn("Firebase popup skipped, authorizing verified Google account in-place:", e);
-      const fallbackUser: UserProfile = {
-        ...user,
-        name: "Gaman Sai",
-        email: "gamanreddy.goona@gmail.com",
-        avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
-        isAuthenticated: true,
-      };
-      onUserUpdate(fallbackUser);
-      try {
-        localStorage.setItem("either_user", JSON.stringify(fallbackUser));
-      } catch (err) {}
-      setSuccessMsg("Signed in as Gaman Sai (Google Account)");
-      setTimeout(() => {
-        onClose();
-      }, 900);
-    } finally {
-      setLoading(false);
+    setSuccessMsg("Opening Google OAuth sign-in...");
+    const popup = window.open("/auth/google", "GoogleAuth", "width=600,height=700");
+    if (!popup || popup.closed || typeof popup.closed === "undefined") {
+      window.location.href = "/auth/google";
     }
   };
 

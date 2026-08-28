@@ -231,22 +231,17 @@ export const ConnectorDrawer: React.FC<ConnectorDrawerProps> = ({
   const handleOAuthConnect = async () => {
     const isGoogle = currentConnector.id === "gmail" || currentConnector.id === "gdrive" || currentConnector.id === "gcalendar";
     if (isGoogle) {
-      const email = user?.email || "gamanreddy.goona@gmail.com";
-      showToast(`Connecting ${currentConnector.name} for ${email}...`);
-      try {
-        const res = await signInWithGoogle();
-        const connectedEmail = res.user?.email || email;
-        await onConnect(currentConnector.id, connectedEmail, { provider: "google" });
-        showToast(`✅ ${currentConnector.name} verified & connected for ${connectedEmail}`);
-      } catch (e) {
-        await onConnect(currentConnector.id, email, { provider: "google" });
-        showToast(`✅ ${currentConnector.name} verified & connected for ${email}`);
+      showToast(`Opening official Google OAuth (accounts.google.com)...`);
+      const popup = window.open("/auth/google", "GoogleAuth", "width=600,height=700");
+      if (!popup || popup.closed || typeof popup.closed === "undefined") {
+        window.location.href = "/auth/google";
       }
     } else if (currentConnector.id === "github") {
-      const ghAccount = "github.com/gamanreddygoona-code";
-      showToast(`Connecting GitHub for @gamanreddygoona-code...`);
-      await onConnect("github", ghAccount, { provider: "github" });
-      showToast(`✅ GitHub verified & connected for @gamanreddygoona-code`);
+      showToast(`Opening official GitHub OAuth...`);
+      const popup = window.open("/auth/github", "GitHubAuth", "width=600,height=700");
+      if (!popup || popup.closed || typeof popup.closed === "undefined") {
+        window.location.href = "/auth/github";
+      }
     } else {
       const authUrl = `/auth/${currentConnector.id}`;
       window.open(authUrl, "_blank", "width=600,height=700");
