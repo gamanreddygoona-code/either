@@ -309,6 +309,7 @@ export default function App() {
         sources: data.sources,
         mode: data.mode,
         analyticsData: data.analyticsData,
+        generatedMedia: data.generatedMedia,
       };
 
       setTabs((prev) =>

@@ -44,6 +44,7 @@ import {
   EitherLogo 
 } from "./ConnectorIcons";
 import { TrafficAnalyticsCard } from "./TrafficAnalyticsCard";
+import { GeneratedMediaCard } from "./GeneratedMediaCard";
 import { AppConnector, ChatMessage, UserProfile } from "../types";
 
 interface MainChatViewProps {
@@ -295,6 +296,9 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
                     )}
                     {!isUser && msg.analyticsData && (
                       <TrafficAnalyticsCard report={msg.analyticsData} onInspectAnother={(u) => onSendMessage(`Inspect live traffic and online users for ${u}`, selectedModel)} />
+                    )}
+                    {!isUser && msg.generatedMedia && (
+                      <GeneratedMediaCard media={msg.generatedMedia} onRegenerate={(p) => onSendMessage(p, selectedModel)} />
                     )}
                     <div className={`p-4 rounded-2xl text-sm leading-relaxed ${isUser ? "bg-stone-900 text-white rounded-tr-none inline-block shadow-2xs text-left" : "bg-white border border-[#ded7c8] text-stone-900 rounded-tl-none shadow-2xs prose prose-stone max-w-none text-xs sm:text-sm whitespace-pre-wrap"}`}>
                       {msg.content}

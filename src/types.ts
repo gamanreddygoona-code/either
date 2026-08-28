@@ -139,6 +139,21 @@ export interface UrlTrafficReport {
   lastChecked: string;
 }
 
+export interface GeneratedMediaPayload {
+  type: "image" | "video";
+  url: string;
+  poster?: string;
+  prompt: string;
+  title: string;
+  durationSec?: number;
+  fps?: number;
+  resolution?: string;
+  width?: number;
+  height?: number;
+  model?: string;
+  generatedAt?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -166,6 +181,7 @@ export interface ChatMessage {
     url?: string;
   }[];
   analyticsData?: UrlTrafficReport;
+  generatedMedia?: GeneratedMediaPayload;
 }
 
 export interface ChatTab {
