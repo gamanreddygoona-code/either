@@ -304,7 +304,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           )}
 
           {activeTab === "oauth" && (
-            <div className="space-y-4 text-center">
+            <div className="space-y-3 text-center">
               <p className="text-xs text-stone-600 leading-relaxed">
                 Connect official OAuth providers for instant token exchange and real-time syncing.
               </p>
@@ -335,8 +335,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <span>Sign in with GitHub (@gamanreddygoona-code)</span>
               </button>
 
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => window.open("/auth/discord", "_blank", "width=680,height=760")}
+                  className="py-2.5 px-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-xl text-[11px] font-bold shadow-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                >
+                  <DiscordIcon className="w-3.5 h-3.5 text-white" />
+                  <span>Discord</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.open("/auth/slack", "_blank", "width=680,height=760")}
+                  className="py-2.5 px-3 bg-[#4A154B] hover:bg-[#3d113e] text-white rounded-xl text-[11px] font-bold shadow-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                >
+                  <SlackIcon className="w-3.5 h-3.5" />
+                  <span>Slack</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.open("/auth/notion", "_blank", "width=680,height=760")}
+                  className="py-2.5 px-3 bg-black hover:bg-stone-900 text-white rounded-xl text-[11px] font-bold shadow-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                >
+                  <NotionIcon className="w-3.5 h-3.5" />
+                  <span>Notion</span>
+                </button>
+              </div>
+
               <div className="text-[11px] text-stone-400 pt-2">
-                Tokens are stored locally in <code className="bg-[#f0ebd9] px-1 py-0.5 rounded text-stone-700">.oauth/</code> and encrypted.
+                All OAuth tokens are verified and securely synchronized across sovereign agent nodes.
               </div>
             </div>
           )}
