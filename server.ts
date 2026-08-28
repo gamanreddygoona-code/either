@@ -3087,93 +3087,121 @@ app.get(["/download/windows", "/download/either-ai-setup.bat", "/download", "/do
 
 /* ================= Dedicated OAuth Endpoints (Google & GitHub) ================= */
 
-app.get(["/auth/google", "/auth/google/callback"], (req, res) => {
+app.get("/auth/google", (req, res) => {
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
-  if (googleClientId && googleClientId.trim() !== "" && !req.path.includes("callback")) {
-    const redirectUri = `${req.protocol}://${req.get("host")}/auth/google/callback`;
-    const scope = encodeURIComponent("https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/calendar.readonly");
-    return res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`);
+  if (!googleClientId || googleClientId.trim() === "") {
+    return res.status(400).send("<html><body style='font-family:system-ui;padding:40px'><h3>Google OAuth Not Configured</h3><p>Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your .env file.</p></body></html>");
   }
 
-  const userObj = {
-    name: "Gaman Sai",
-    email: "gamanreddy.goona@gmail.com",
-    avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
-    isAuthenticated: true,
-  };
+  const host = req.get("host") || "localhost:3000";
+  const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+  const redirectUri = `${protocol}://${host}/auth/google/callback`;
+  const scopes = [
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly"
+  ].join(" ");
 
-  // Sync server state
-  authenticatedUserProfile.name = userObj.name;
-  authenticatedUserProfile.email = userObj.email;
-  authenticatedUserProfile.avatarUrl = userObj.avatarUrl;
-  authenticatedUserProfile.isAuthenticated = true;
-  ["gmail", "gdrive", "gcalendar"].forEach((gid) => {
-    if (connectorsState[gid]) {
-      connectorsState[gid].status = "connected";
-      connectorsState[gid].connectedAccount = userObj.email;
-      connectorsState[gid].lastSynced = "Just now (Verified Live)";
-    }
-  });
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent`;
+  
+  return res.redirect(authUrl);
+});
 
-  const userJson = JSON.stringify(userObj);
+app.get("/auth/google/callback", async (req, res) => {
+  const code = req.query.code as string;
+  const error = req.query.error as string;
 
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Google Account Authorization</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #090a0f; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .card { background: #12141c; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 36px 32px; max-width: 380px; width: 90%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
-    .logo { width: 44px; height: 44px; margin-bottom: 16px; }
-    h2 { font-size: 19px; font-weight: 700; margin: 0 0 8px 0; color: #fff; }
-    p { font-size: 13px; color: #94a3b8; margin: 0 0 24px 0; line-height: 1.5; }
-    .account { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); padding: 12px 16px; border-radius: 14px; margin-bottom: 24px; text-align: left; }
-    .avatar { width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
-    .name { font-weight: 600; font-size: 14px; color: #f1f5f9; }
-    .email { font-size: 12px; color: #94a3b8; }
-    .btn { background: #4285f4; color: #fff; border: none; border-radius: 12px; padding: 14px 20px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn:hover { background: #3367d6; transform: translateY(-1px); }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <svg class="logo" viewBox="0 0 48 48">
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.79l7.97-6.2z"/>
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-    </svg>
-    <h2>Sign in with Google</h2>
-    <p>Authorize Either AI Workspace to connect your Gmail inbox, Drive docs, and Calendar.</p>
-    <div class="account">
-      <img class="avatar" src="https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c" alt="Avatar" />
-      <div>
-        <div class="name">Gaman Sai</div>
-        <div class="email">gamanreddy.goona@gmail.com</div>
-      </div>
-    </div>
-    <button class="btn" onclick="authorize()">
-      <span>Continue as Gaman Sai</span>
-    </button>
-  </div>
-  <script>
-    function authorize() {
-      const user = ${userJson};
+  if (error) {
+    return res.status(400).send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>Google Authorization Error</h3><p>${error}</p><p><a href="/auth/google">Try Again</a></p></body></html>`);
+  }
+
+  if (!code) {
+    return res.status(400).send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>Missing Code</h3><p>No authorization code received from Google.</p><p><a href="/auth/google">Try Again</a></p></body></html>`);
+  }
+
+  const host = req.get("host") || "localhost:3000";
+  const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+  const redirectUri = `${protocol}://${host}/auth/google/callback`;
+
+  try {
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
+
+    const tokenData = await tokenRes.json();
+
+    if (tokenData.access_token) {
+      googleTokens.access_token = tokenData.access_token;
+      googleTokens.refresh_token = tokenData.refresh_token || googleTokens.refresh_token;
+      googleTokens.expiry = Date.now() + (tokenData.expires_in || 3600) * 1000;
+
+      // Fetch user profile from Google
+      let userEmail = "gamanreddy.goona@gmail.com";
+      let userName = "Gaman Sai";
+      let userAvatar = "";
+
       try {
-        localStorage.setItem("either_user", JSON.stringify(user));
-      } catch(e) {}
+        const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        });
+        const userInfo = await userRes.json();
+        if (userInfo.email) userEmail = userInfo.email;
+        if (userInfo.name) userName = userInfo.name;
+        if (userInfo.picture) userAvatar = userInfo.picture;
+      } catch (e) {}
+
+      googleTokens.email = userEmail;
+      saveGoogleTokens();
+
+      ["gmail", "gdrive", "gcalendar"].forEach((id) => {
+        if (connectorsState[id]) {
+          connectorsState[id].status = "connected";
+          connectorsState[id].connectedAccount = userEmail;
+          connectorsState[id].lastSynced = "Just now (Live Google OAuth)";
+        }
+      });
+
+      const authedUser = {
+        name: userName,
+        email: userEmail,
+        avatarUrl: userAvatar,
+        isAuthenticated: true,
+      };
+
+      return res.send(`<!DOCTYPE html>
+<html>
+<head><title>Authentication Successful</title></head>
+<body style="font-family:system-ui;background:#090a0f;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+  <div style="background:#12141c;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:36px;text-align:center;max-width:380px">
+    <h2 style="margin:0 0 10px 0;color:#34a853">✓ Google Connected!</h2>
+    <p style="font-size:13px;color:#94a3b8">Logged in as <b>${userEmail}</b>. Syncing Gmail, Drive, and Calendar...</p>
+    <script>
       if (window.opener) {
-        window.opener.postMessage({ type: "EITHER_AUTH_SUCCESS", user: user }, "*");
-        setTimeout(() => window.close(), 300);
+        window.opener.postMessage({ type: "EITHER_AUTH_SUCCESS", user: ${JSON.stringify(authedUser)} }, "*");
+        setTimeout(() => window.close(), 500);
       } else {
         window.location.href = "/?app=1";
       }
-    }
-  </script>
+    </script>
+  </div>
 </body>
 </html>`);
+    } else {
+      return res.status(400).send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>Google Token Exchange Failed</h3><pre style="text-align:left;background:#1e1e1e;color:#fff;padding:15px;border-radius:8px">${JSON.stringify(tokenData, null, 2)}</pre><p><a href="/auth/google">Try Again</a></p></body></html>`);
+    }
+  } catch (err: any) {
+    return res.status(500).send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>OAuth Exchange Error</h3><p>${err.message}</p><p><a href="/auth/google">Try Again</a></p></body></html>`);
+  }
 });
 
 app.get(["/auth/github", "/auth/github/callback"], (req, res) => {
