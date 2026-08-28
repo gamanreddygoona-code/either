@@ -51,16 +51,54 @@ export default function App() {
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const [user, setUser] = useState<UserProfile>({
-    name: "Gaman Sai",
-    email: "gamanreddy.goona@gmail.com",
-    plan: "Pro Agent Workspace",
-    avatarGradient: "from-purple-400 via-pink-300 to-cyan-300",
-    avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
-    version: "0.84.17",
-    contextEnabled: true,
-    isAuthenticated: true,
+  const [user, setUser] = useState<UserProfile>(() => {
+    try {
+      const saved = localStorage.getItem("either_user");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      name: "Gaman Sai",
+      email: "gamanreddy.goona@gmail.com",
+      plan: "Pro Agent Workspace",
+      avatarGradient: "from-purple-400 via-pink-300 to-cyan-300",
+      avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
+      version: "0.84.17",
+      contextEnabled: true,
+      isAuthenticated: true,
+    };
   });
+
+  // Listen for OAuth completion from popup windows
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "EITHER_AUTH_SUCCESS") {
+        if (event.data.user) {
+          const newUser = { ...user, ...event.data.user, isAuthenticated: true };
+          setUser(newUser);
+          try {
+            localStorage.setItem("either_user", JSON.stringify(newUser));
+          } catch (e) {}
+        }
+        // Force refresh connectors
+        fetch("/api/connectors")
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.connectors) {
+              setConnectors((prev) =>
+                prev.map((c) => {
+                  const serverData = data.connectors[c.id];
+                  return serverData ? { ...c, ...serverData } : c;
+                })
+              );
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    window.addEventListener("message", handleAuthMessage);
+    return () => window.removeEventListener("message", handleAuthMessage);
+  }, [user]);
 
   // Real fresh chat session grounded in real user data
   const [tabs, setTabs] = useState<ChatTab[]>([
@@ -100,6 +138,9 @@ export default function App() {
       .then((data) => {
         if (data.user) {
           setUser((prev) => ({ ...prev, ...data.user }));
+          try {
+            localStorage.setItem("either_user", JSON.stringify(data.user));
+          } catch (e) {}
         }
       })
       .catch((err) => console.warn("Auth fetch:", err));

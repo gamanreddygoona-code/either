@@ -164,7 +164,7 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
         <div className="flex-1 overflow-y-auto flex flex-col justify-center items-center py-10 space-y-7 animate-fadeIn">
           <div className="w-full text-left space-y-1">
             <h1 className="text-3xl sm:text-4xl font-normal text-stone-900 tracking-tight font-serif">
-              What's the next step, {(() => { const w = (user.name || "").trim().split(/\s+/)[0]; return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); })()}?
+              What's the next step, {(() => { const name = (user?.name && user.name !== "Guest" ? user.name : "Gaman").trim().split(/\s+/)[0]; return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(); })()}?
             </h1>
             <p className="text-sm font-medium text-stone-500">{formattedDate}</p>
           </div>
