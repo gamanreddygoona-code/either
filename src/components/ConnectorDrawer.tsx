@@ -430,14 +430,25 @@ export const ConnectorDrawer: React.FC<ConnectorDrawerProps> = ({
               <div className="space-y-3">
                 {/* OAuth button */}
                 {authConfig.type === "oauth" && (
-                  <button
-                    onClick={handleOAuthConnect}
-                    className="w-full px-4 py-3 bg-white border-2 border-stone-900 hover:bg-stone-900 hover:text-white text-stone-900 rounded-xl text-sm font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-sm"
+                  <a
+                    href={
+                      currentConnector.id === "gmail" || currentConnector.id === "gdrive" || currentConnector.id === "gcalendar"
+                        ? "/auth/google"
+                        : currentConnector.id === "github"
+                        ? "/auth/github"
+                        : `/auth/${currentConnector.id}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      showToast(`Opening official ${currentConnector.name} authorization...`);
+                    }}
+                    className="w-full px-4 py-3 bg-white border-2 border-stone-900 hover:bg-stone-900 hover:text-white text-stone-900 rounded-xl text-sm font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-sm no-underline"
                   >
                     <AppIconRenderer iconName={currentConnector.icon} className="w-5 h-5" />
                     <span>{authConfig.label}</span>
                     <ArrowRight className="w-4 h-4" />
-                  </button>
+                  </a>
                 )}
 
                 {/* Token input */}

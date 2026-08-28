@@ -50,11 +50,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleGoogleSignIn = () => {
     setLoading(true);
-    setSuccessMsg("Opening Google OAuth sign-in...");
-    const popup = window.open("/auth/google", "GoogleAuth", "width=600,height=700");
+    setSuccessMsg("Opening official Google OAuth...");
+    const popup = window.open("/auth/google", "_blank", "width=600,height=750");
     if (!popup || popup.closed || typeof popup.closed === "undefined") {
       window.location.href = "/auth/google";
     }
+    setTimeout(() => setLoading(false), 2000);
   };
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
