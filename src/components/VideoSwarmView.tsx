@@ -81,7 +81,7 @@ export const VideoSwarmView: React.FC = () => {
       for (let i = 0; i < currentProj.scenes.length; i++) {
         const sc = currentProj.scenes[i];
         setSwarmStepLog(`Agent 3 (Video Producer) is rendering 4 cinematic variants for Scene ${i + 1}...`);
-        const genRes = await fetch(`/api/video/scene/${sc.id}/generate`, { method: "POST" });
+        const genRes = await fetch(`/api/video/scene/${sc.id}/generate`, { method: "POST", headers: { "Content-Type":"application/json" }, body: JSON.stringify({ useVeo: true, veoModel: "veo-3.0-generate-001" }) });
         const genData = await genRes.json();
         if (genData.success && genData.scene) {
           const varId = genData.scene.variants[0]?.id || "v1";
@@ -179,7 +179,7 @@ export const VideoSwarmView: React.FC = () => {
   const handleGenerateVariants = async (sceneId: string) => {
     setGeneratingSceneId(sceneId);
     try {
-      const res = await fetch(`/api/video/scene/${sceneId}/generate`, { method: "POST" });
+      const res = await fetch(`/api/video/scene/${sceneId}/generate`, { method: "POST", headers: { "Content-Type":"application/json" }, body: JSON.stringify({ useVeo: true, veoModel: "veo-3.0-generate-001" }) });
       const j = await res.json();
       if (j.success && project) {
         setProject(prev => prev ? {

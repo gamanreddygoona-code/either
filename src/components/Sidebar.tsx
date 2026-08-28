@@ -20,7 +20,8 @@ import {
   Film,
   Clapperboard,
   SearchCheck,
-  Wand2
+  Wand2,
+  Terminal
 } from "lucide-react";
 import { EitherLogo } from "./ConnectorIcons";
 import { ProjectItem, UserProfile } from "../types";
@@ -248,6 +249,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-[9px] bg-cyan-100 text-cyan-800 font-bold px-1.5 py-0.2 rounded font-mono">LIVE</span>
             </div>
           </button>
+
+          {/* Sandbox — Run Commands + Ask */}
+          <button
+            id="sidebar-sandbox-btn"
+            onClick={() => onSelectView("sandbox")}
+            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+              activeView === "sandbox"
+                ? "bg-stone-900 text-white font-semibold shadow-xs"
+                : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
+            }`}
+          >
+            <Terminal className={`w-4 h-4 shrink-0 ${activeView==="sandbox"?"text-white":"text-stone-600"}`} />
+            <div className="flex items-center justify-between w-full">
+              <span>Sandbox</span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-mono ${activeView==="sandbox"?"bg-white text-stone-900":"bg-stone-900 text-white"}`}>RUN</span>
+            </div>
+          </button>
+
+          {/* Movie Swarm — Veo 3 4 clips per scene */}
+          <button
+            id="sidebar-video-swarm-btn"
+            onClick={() => onSelectView("video-swarm")}
+            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+              activeView === "video-swarm"
+                ? "bg-violet-600 text-white font-semibold shadow-xs"
+                : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
+            }`}
+          >
+            <Film className={`w-4 h-4 shrink-0 ${activeView==="video-swarm"?"text-white":"text-violet-600"}`} />
+            <div className="flex items-center justify-between w-full">
+              <span>Movie Swarm</span>
+              <span className="text-[9px] bg-violet-100 text-violet-800 font-bold px-1.5 py-0.2 rounded font-mono">Veo 3 • 4×</span>
+            </div>
+          </button>
         </nav>
 
         {/* Projects Section */}
@@ -334,6 +369,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ) : null}
             <span>{restarting ? "Updating..." : restarted ? "Done" : "Restart"}</span>
           </button>
+        </div>
+
+        {/* Token Usage — Start plan: 100k / month */}
+        <div className="bg-white border border-[#e8e3d8] rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-stone-700 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+              {user.plan} • Tokens
+            </span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-violet-50 border border-violet-200 text-violet-700">
+              {(user.tokenUsage?.used || 0).toLocaleString()} / {(user.tokenUsage?.limit || 100000).toLocaleString()}
+            </span>
+          </div>
+          <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-violet-600 to-cyan-500 transition-all"
+              style={{ width: `${Math.min(100, user.tokenUsage?.percentUsed || 0)}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-stone-500 font-mono">
+            <span>{(user.tokenUsage?.remaining ?? 100000).toLocaleString()} left</span>
+            <span>Resets {user.tokenUsage?.resetDate ? new Date(user.tokenUsage.resetDate).toLocaleDateString() : "next month"}</span>
+          </div>
+          {(user.tokenUsage?.percentUsed || 0) > 85 && (
+            <div className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-2 py-1 text-center">
+              { (user.tokenUsage?.percentUsed || 0) >= 100 ? "Limit reached — upgrade for more" : "Approaching limit — consider upgrading" }
+            </div>
+          )}
         </div>
 
         {/* Context Enabled Pill Indicator */}

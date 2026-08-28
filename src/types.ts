@@ -330,6 +330,13 @@ export interface UserProfile {
   version: string;
   contextEnabled: boolean;
   isAuthenticated?: boolean;
+  tokenUsage?: {
+    used: number;
+    limit: number;
+    remaining: number;
+    resetDate: string;
+    plan: string;
+  };
 }
 
 /* ================= Agent 2 Video Swarm Types ================= */

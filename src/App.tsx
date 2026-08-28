@@ -11,6 +11,8 @@ import { DedicatedServerView } from "./components/DedicatedServerView";
 import { WiFiHardwareView } from "./components/WiFiHardwareView";
 import { AITradingDesk } from "./components/AITradingDesk";
 import { BrowserAgentView } from "./components/BrowserAgentView";
+import { SandboxView } from "./components/SandboxView";
+import { VideoSwarmView } from "./components/VideoSwarmView";
 import { SkillsMemoryDrawer } from "./components/SkillsMemoryDrawer";
 import { AuthModal } from "./components/AuthModal";
 import { LandingPage } from "./components/LandingPage";
@@ -39,7 +41,7 @@ export default function App() {
   });
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
-  const [activeView, setActiveView] = useState<"chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm">("chat");
   const [connectors, setConnectors] = useState<AppConnector[]>(INITIAL_CONNECTORS);
   const [meetingNotes, setMeetingNotes] = useState<MeetingNote[]>(INITIAL_MEETING_NOTES);
   const [routines, setRoutines] = useState<Routine[]>(INITIAL_ROUTINES);
@@ -54,17 +56,28 @@ export default function App() {
   const [user, setUser] = useState<UserProfile>(() => {
     try {
       const saved = localStorage.getItem("either_user");
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Migrate old Pro to Start if needed, but keep Start as default for new users
+        return parsed;
+      }
     } catch (e) {}
     return {
       name: "Gaman Sai",
       email: "gamanreddy.goona@gmail.com",
-      plan: "Pro Agent Workspace",
+      plan: "Start",
       avatarGradient: "from-purple-400 via-pink-300 to-cyan-300",
       avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
       version: "0.84.17",
       contextEnabled: true,
       isAuthenticated: true,
+      tokenUsage: {
+        used: 0,
+        limit: 100000,
+        remaining: 100000,
+        resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(),
+        plan: "Start",
+      }
     };
   });
 
@@ -137,13 +150,34 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         if (data.user) {
-          setUser((prev) => ({ ...prev, ...data.user }));
+          setUser((prev) => ({ ...prev, ...data.user, tokenUsage: data.user.tokenUsage || prev.tokenUsage }));
           try {
             localStorage.setItem("either_user", JSON.stringify(data.user));
           } catch (e) {}
         }
       })
       .catch((err) => console.warn("Auth fetch:", err));
+
+    // Fetch Start plan token usage (100k/month) — refresh on mount
+    fetch("/api/user/usage")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.usage) {
+          setUser((prev) => ({
+            ...prev,
+            tokenUsage: {
+              used: data.usage.used,
+              limit: data.usage.limit,
+              remaining: data.usage.remaining,
+              resetDate: data.usage.resetDate,
+              plan: data.usage.plan,
+              percentUsed: data.usage.percentUsed,
+            },
+            plan: data.usage.plan || prev.plan,
+          }));
+        }
+      })
+      .catch(() => {});
 
     const fetchStatus = () => {
       fetch("/api/connectors")
@@ -326,6 +360,51 @@ export default function App() {
       });
 
       const data = await res.json();
+
+      // Update token usage if provided
+      if (data.usage || data.code === "TOKEN_LIMIT_EXCEEDED") {
+        const usage = data.usage || data.usage;
+        if (usage) {
+          setUser((prev) => ({
+            ...prev,
+            tokenUsage: {
+              used: usage.used ?? prev.tokenUsage?.used ?? 0,
+              limit: usage.limit ?? prev.tokenUsage?.limit ?? 100000,
+              remaining: usage.remaining ?? 0,
+              resetDate: usage.resetDate ?? prev.tokenUsage?.resetDate ?? new Date().toISOString(),
+              plan: usage.plan ?? prev.plan,
+              percentUsed: usage.percentUsed ?? Math.round(((usage.used || 0) / (usage.limit || 100000)) * 100),
+            }
+          }));
+        }
+      }
+
+      // Handle token limit exceeded
+      if (res.status === 429 || data.code === "TOKEN_LIMIT_EXCEEDED") {
+        const limitMsg: ChatMessage = {
+          id: `msg-${Date.now()}-limit`,
+          role: "assistant",
+          content: `⚠️ **Start plan limit reached — 100k tokens/month**\n\nYou've used **${data.usage?.used?.toLocaleString() || "100,000"}/${data.usage?.limit?.toLocaleString() || "100,000"}** tokens. Resets **${data.usage?.resetDate ? new Date(data.usage.resetDate).toLocaleDateString() : "next month"}**.\n\nUpgrade to **Pro (500k)** or **Enterprise (2M)** for more, or wait for reset. Your prompt was not processed to save tokens.`,
+          timestamp: "Just now",
+          mode: "fallback" as const,
+        };
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === activeTabId
+              ? { ...t, messages: [...updatedMessages, limitMsg] }
+              : t
+          )
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Also refresh usage via dedicated endpoint for accuracy
+      fetch("/api/user/usage").then(r=>r.json()).then(d=>{
+        if(d.success && d.usage){
+          setUser(prev=> ({ ...prev, tokenUsage: { used: d.usage.used, limit: d.usage.limit, remaining: d.usage.remaining, resetDate: d.usage.resetDate, plan: d.usage.plan, percentUsed: d.usage.percentUsed } }));
+        }
+      }).catch(()=>{});
 
       const assistantMsg: ChatMessage = {
         id: `msg-${Date.now()}-ai`,
@@ -515,6 +594,14 @@ export default function App() {
                   .catch(() => {});
               }}
             />
+          )}
+
+          {activeView === "sandbox" && (
+            <SandboxView onOpenMovie={(script)=> { setActiveView("video-swarm"); if(script) window.dispatchEvent(new CustomEvent("sandbox-movie-script", { detail: script })); }} />
+          )}
+
+          {activeView === "video-swarm" && (
+            <VideoSwarmView />
           )}
         </main>
       </div>

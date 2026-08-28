@@ -1,11 +1,11 @@
-# Littlebird AI Workspace — Desktop
+# Either — Desktop
 
 Native Windows desktop app — no website, no Google, no cloud. Runs 100% on your machine.
 
 **Download & Run:**
-1. Download `Littlebird-Setup.exe` from the landing page or `release/` folder
+1. Download `Either-Setup.exe` from the landing page or `release/` folder
 2. Double-click to install — creates Desktop shortcut
-3. Or run directly: `npm run desktop` (requires Node) or double-click `Littlebird Desktop — Native.lnk` on Desktop
+3. Or run directly: `npm run desktop` (requires Node) or double-click `Either Desktop — Native.lnk` on Desktop
 
 **Live Connectors (15):** Gmail, Drive, Calendar, GitHub, Notion, Slack, Discord, Linear, Asana, Dropbox, Zapier, Hugging Face, Instagram, Facebook, WhatsApp — all validated live.
 

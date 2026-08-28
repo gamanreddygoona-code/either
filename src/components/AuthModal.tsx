@@ -21,7 +21,8 @@ import {
   SlackIcon, 
   HuggingFaceIcon, 
   GoogleDriveIcon, 
-  GoogleCalendarIcon 
+  GoogleCalendarIcon,
+  DiscordIcon
 } from "./ConnectorIcons";
 import { signInWithGoogle, logOut } from "../lib/firebase";
 import { UserProfile } from "../types";
@@ -277,7 +278,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         <span className="text-xs font-bold text-stone-900">Slack</span>
                         <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">LIVE</span>
                       </div>
-                      <p className="text-[11px] text-stone-500 font-mono">gaman · @littlebird</p>
+                      <p className="text-[11px] text-stone-500 font-mono">gaman · @either</p>
                     </div>
                   </div>
                   <span className="text-[11px] text-stone-500 font-mono">Bot Token</span>

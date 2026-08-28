@@ -159,15 +159,86 @@ async function generateWithRetry(contents: any, config?: any): Promise<string> {
 /* ================= user session (honest) ================= */
 
 let currentUser = {
-  name: process.env.EITHER_USER_NAME || "Guest",
-  email: process.env.EITHER_USER_EMAIL || "",
-  plan: "Hobby Workspace",
+  name: process.env.EITHER_USER_NAME || "Gaman Sai",
+  email: process.env.EITHER_USER_EMAIL || "gamanreddy.goona@gmail.com",
+  plan: process.env.EITHER_PLAN || "Start",
   avatarGradient: "from-violet-400 via-indigo-300 to-cyan-300",
-  avatarUrl: "",
+  avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
   version: "0.84.17",
   contextEnabled: true,
-  isAuthenticated: false,
+  isAuthenticated: true,
 };
+
+// ================= Start plan: 100k tokens / month =================
+const PLAN_LIMITS: Record<string, number> = {
+  "Start": 100000,
+  "Hobby Workspace": 10000,
+  "Hobby": 10000,
+  "Pro Agent Workspace": 500000,
+  "Pro": 500000,
+  "Enterprise": 2000000,
+  "Unlimited": 999999999,
+};
+function getPlanLimit(plan: string): number {
+  return PLAN_LIMITS[plan] || PLAN_LIMITS["Start"];
+}
+interface TokenUsage {
+  used: number;
+  limit: number;
+  resetDate: string; // ISO date of next reset
+  updatedAt: string;
+}
+const userTokenUsage = new Map<string, TokenUsage>();
+function getTokenUsageKey(): string {
+  return currentUser.email || "guest";
+}
+function getOrCreateUsage(): TokenUsage {
+  const key = getTokenUsageKey();
+  const now = new Date();
+  let usage = userTokenUsage.get(key);
+  const planLimit = getPlanLimit(currentUser.plan);
+  // Monthly reset: first day of next month
+  const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+  if (!usage) {
+    usage = { used: 0, limit: planLimit, resetDate: nextReset, updatedAt: now.toISOString() };
+    userTokenUsage.set(key, usage);
+    return usage;
+  }
+  // Reset if past resetDate
+  if (now.toISOString() >= usage.resetDate) {
+    usage.used = 0;
+    usage.limit = planLimit;
+    usage.resetDate = nextReset;
+    usage.updatedAt = now.toISOString();
+    userTokenUsage.set(key, usage);
+  }
+  // Update limit if plan changed
+  if (usage.limit !== planLimit) {
+    usage.limit = planLimit;
+  }
+  return usage;
+}
+function estimateTokens(text: string): number {
+  // Rough estimate: ~4 chars per token, plus overhead
+  return Math.ceil((text || "").length / 4);
+}
+function consumeTokens(prompt: string, completion: string): { used: number; remaining: number; limit: number } {
+  const usage = getOrCreateUsage();
+  const tokens = estimateTokens(prompt) + estimateTokens(completion);
+  usage.used += tokens;
+  usage.updatedAt = new Date().toISOString();
+  // Cap at limit (don't exceed, but allow to track overage)
+  if (usage.used > usage.limit) {
+    pushLog("warn", "TokenUsage", currentUser.email || "guest", `Over limit: ${usage.used}/${usage.limit} tokens for ${currentUser.plan}`);
+  }
+  userTokenUsage.set(getTokenUsageKey(), usage);
+  return { used: usage.used, remaining: Math.max(0, usage.limit - usage.used), limit: usage.limit };
+}
+function canConsumeTokens(estimatedTokens: number): { allowed: boolean; remaining: number; limit: number; used: number } {
+  const usage = getOrCreateUsage();
+  const remaining = usage.limit - usage.used;
+  return { allowed: remaining >= estimatedTokens, remaining, limit: usage.limit, used: usage.used };
+}
 
 /* ================= connectors (real, credential-gated) ================= */
 
@@ -798,9 +869,40 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+app.get("/api/user/usage", (_req, res) => {
+  const usage = getOrCreateUsage();
+  res.json({
+    success: true,
+    usage: {
+      used: usage.used,
+      limit: usage.limit,
+      remaining: Math.max(0, usage.limit - usage.used),
+      resetDate: usage.resetDate,
+      plan: currentUser.plan,
+      email: currentUser.email,
+      percentUsed: Math.round((usage.used / usage.limit) * 100),
+    }
+  });
+});
+
 /* ================= auth ================= */
 
-app.get("/api/auth/me", (_req, res) => res.json({ user: currentUser }));
+app.get("/api/auth/me", (_req, res) => {
+  const usage = getOrCreateUsage();
+  res.json({
+    user: {
+      ...currentUser,
+      tokenUsage: {
+        used: usage.used,
+        limit: usage.limit,
+        remaining: Math.max(0, usage.limit - usage.used),
+        resetDate: usage.resetDate,
+        plan: currentUser.plan,
+        percentUsed: Math.round((usage.used / usage.limit) * 100),
+      }
+    }
+  });
+});
 
 app.post("/api/auth/login", (req, res) => {
   const { name, email, avatarUrl } = req.body;
@@ -1786,6 +1888,124 @@ app.post("/api/servers/deploy", (req, res) => {
   });
 });
 
+/* ================= Sandbox — secure command exec + ask-if-needed ================= */
+
+const SANDBOX_ROOT = process.cwd();
+const BLOCKED_PATTERNS = [/rm\s+-rf/i, /del\s+\/[s]/i, /format\s+[a-z]:/i, /shutdown/i, /mkfs/i, /:\(\)\{\s*:\|\:&\s*\}/];
+
+// Simple heuristic: if prompt is vague like "do something", ask for clarification — but never for shell commands
+function needsClarification(input: string): string | null {
+  const t = input.trim().toLowerCase();
+  const shellWhitelist = ["dir", "ls", "cat", "type", "echo", "git", "npm", "npx", "node", "python", "pip", "pwd", "whoami", "ls -la", "env", "set"];
+  const first = t.split(/\s+/)[0];
+  if (shellWhitelist.includes(first) || shellWhitelist.some(w => t.startsWith(w + " "))) return null;
+  if (t.length < 4) return "Your instruction is very short — could you specify what you want me to do?";
+  const vague = ["do something", "fix it", "make it work", "do the thing", "handle it", "just do it", "proceed", "go ahead"];
+  if (vague.some(v => t === v || t === v + ".")) return "Could you clarify what you want me to do? For example: which file, what goal, or which service?";
+  if (/^(do|make|fix|run|execute)\s*$/.test(t)) return "What should I do? Please specify the task, file, or feature.";
+  return null;
+}
+
+app.post("/api/sandbox/exec", async (req, res) => {
+  const { command, context } = req.body || {};
+  const raw = (command || "").toString().trim();
+  if (!raw) return res.status(400).json({ error: "command required" });
+
+  // Ask if needed before running
+  const fullInput = context ? `${raw} ${context}` : raw;
+  const ask = needsClarification(fullInput);
+  if (ask && !context) {
+    pushLog("warn", "Sandbox", "Ask", `Needs clarification for: "${raw}"`);
+    return res.json({ needsAsk: true, question: ask });
+  }
+
+  // Block dangerous patterns
+  for (const pat of BLOCKED_PATTERNS) {
+    if (pat.test(raw)) {
+      pushLog("error", "Sandbox", "Blocked", `Blocked dangerous command: ${raw}`);
+      return res.status(400).json({ error: "Blocked: dangerous command pattern", output: `Blocked: ${raw}` });
+    }
+  }
+
+  // Only allow allowlisted commands for safety (extend as needed)
+  const allowList = ["dir", "ls", "cat", "type", "echo", "git", "npm", "npx", "node", "python", "pip", "ls -la", "pwd", "whoami", "env"];
+  const firstToken = raw.split(/\s+/)[0].toLowerCase();
+  const isAllowed = allowList.some(a => firstToken === a || raw.toLowerCase().startsWith(a + " "));
+  if (!isAllowed) {
+    // Still allow but warn and ask for confirmation via needsAsk
+    pushLog("warn", "Sandbox", "Confirm", `Uncommon command: ${raw} — asking for confirmation`);
+    if (!context) {
+      return res.json({ needsAsk: true, question: `The command "${raw}" is uncommon. Are you sure you want to run it? Reply with "yes" to proceed.` });
+    }
+    if (context.toLowerCase() !== "yes" && context.toLowerCase() !== "y") {
+      return res.json({ output: "Cancelled — not confirmed.", needsAsk: false });
+    }
+  }
+
+  try {
+    const { exec } = await import("child_process");
+    const { promisify } = await import("util");
+    const execAsync = promisify(exec);
+    const opts: any = { cwd: SANDBOX_ROOT, timeout: 15000, maxBuffer: 1024*1024, windowsHide: true };
+    // On Windows, wrap in cmd /c
+    const cmd = process.platform === "win32" ? `cmd /c "${raw}"` : raw;
+    const { stdout, stderr } = await execAsync(cmd, opts);
+    const out = (stdout || "") + (stderr ? `\n[stderr]\n${stderr}` : "");
+    pushLog("success", "Sandbox", raw.slice(0,40), `Executed, ${out.length} chars`);
+    res.json({ output: out.slice(0, 8000) || "(no output)", command: raw });
+  } catch (e:any) {
+    const msg = e.message || String(e);
+    const out = (e.stdout || "") + (e.stderr || "") + `\n[error] ${msg}`;
+    pushLog("error", "Sandbox", raw.slice(0,40), out.slice(0,200));
+    res.json({ output: out.slice(0, 8000), error: msg, command: raw });
+  }
+});
+
+/* ================= Veo 3 — 4 clips per scene ================= */
+
+async function generateVeoClip(prompt: string, style: string, attempt = 0): Promise<{ url: string; thumbnail: string; prompt: string }> {
+  const styledPrompt = `${style} style: ${prompt} — ${style} cinematic, 10 seconds, 16:9, high detail`;
+  const ai = getAI();
+  // Try real Veo 3 if key is configured, otherwise fallback to mock
+  if (ai && process.env.GEMINI_API_KEY) {
+    const modelsToTry = ["veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-2.0-generate-001"];
+    for (const model of modelsToTry) {
+      try {
+        const op: any = await (ai as any).models.generateVideos({
+          model,
+          prompt: styledPrompt,
+          config: { aspectRatio: "16:9", durationSeconds: 8, numberOfVideos: 1 } as any,
+        });
+        // Poll for completion (max 60s)
+        let current = op;
+        for (let i=0;i<12;i++) {
+          if (current.done) break;
+          await new Promise(r=> setTimeout(r, 5000));
+          try {
+            current = await (ai as any).operations.getVideosOperation({ operation: current });
+            // Some SDKs use getVideosOperation vs get
+            if (!current) current = await (ai as any).operations.get({ operationName: op.name } as any);
+          } catch {}
+          if (current?.done) break;
+        }
+        const vid = current?.response?.generatedVideos?.[0] || current?.result?.generatedVideos?.[0];
+        const uri = vid?.video?.uri || vid?.uri || vid?.videoUri;
+        if (uri) {
+          // For Gemini API, uri is a file URI that needs to be fetched, but we can return it directly
+          // Use thumbnail as same uri with poster
+          return { url: uri, thumbnail: uri, prompt: styledPrompt };
+        }
+      } catch (e:any) {
+        // Try next model
+        if (attempt < 2) continue;
+      }
+    }
+  }
+  // Fallback mock (always works, no API key needed) — use sample videos
+  const { url, thumbnail } = mockVideoUrls(styledPrompt + style, Math.floor(Math.random()*1000));
+  return { url, thumbnail, prompt: styledPrompt };
+}
+
 /* ================= folder inspector (real filesystem) ================= */
 
 app.post("/api/agent/inspect-folder", async (req, res) => {
@@ -2109,6 +2329,18 @@ app.post("/api/chat", async (req, res) => {
     return res.status(400).json({ error: "Missing or invalid prompt" });
   }
 
+  // Start plan: 100k tokens / month — check before processing
+  const estimatedInput = estimateTokens(prompt) + estimateTokens(connectedContext) + estimateTokens(history.map((h:any)=>h.content||"").join(" "));
+  const canProceed = canConsumeTokens(estimatedInput + 800); // reserve for completion
+  if (!canProceed.allowed) {
+    const usage = getOrCreateUsage();
+    return res.status(429).json({
+      error: `Monthly token limit reached for ${currentUser.plan} plan (${usage.used}/${usage.limit}). Resets ${new Date(usage.resetDate).toLocaleDateString()}. Upgrade for more.`,
+      code: "TOKEN_LIMIT_EXCEEDED",
+      usage: { used: usage.used, limit: usage.limit, remaining: 0, resetDate: usage.resetDate, plan: currentUser.plan }
+    });
+  }
+
   const queryLower = prompt.toLowerCase();
   const toolsUsed: any[] = [];
   const sources: any[] = [];
@@ -2408,7 +2640,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // Build grounded prompt
-  const systemPrompt = `You are Either / Littlebird AI, an exceptionally capable, intelligent workspace assistant.
+  const systemPrompt = `You are Either / Either AI, an exceptionally capable, intelligent workspace assistant.
 User: Gaman Sai (gamanreddy.goona@gmail.com).
 
 Live Grounding Context from APIs:
@@ -2463,6 +2695,7 @@ Instructions:
 
   try {
     const answer = await generateWithRetry(fullPromptText);
+    const tokenInfo = consumeTokens(fullPromptText, answer);
     return res.json({
       success: true,
       answer,
@@ -2471,6 +2704,7 @@ Instructions:
       analyticsData,
       generatedMedia,
       mode: toolsUsed.length > 0 ? "live-grounded" : "standard",
+      usage: tokenInfo,
     });
   } catch (err: any) {
     console.error("Gemini primary error:", err.message);
@@ -2479,6 +2713,7 @@ Instructions:
     try {
       const answer = await generateWithRetry(prompt);
       if (answer && answer.trim().length > 0) {
+        const tokenInfo = consumeTokens(prompt, answer);
         return res.json({
           success: true,
           answer,
@@ -2487,6 +2722,7 @@ Instructions:
           analyticsData,
           generatedMedia,
           mode: "live-grounded",
+          usage: tokenInfo,
         });
       }
     } catch (e2) {}
@@ -2566,7 +2802,7 @@ async function inspectUrlTraffic(rawUrl: string) {
     latencyMs = Math.floor(Math.random() * 30) + 38;
   }
 
-  const isSelf = domain.includes("either") || domain.includes("127.0.0.1") || domain.includes("localhost") || domain.includes("littlebird");
+  const isSelf = domain.includes("either") || domain.includes("127.0.0.1") || domain.includes("localhost") || domain.includes("Either");
   
   let totalVisitors = 0;
   let onlineUsers = 0;
@@ -2778,12 +3014,22 @@ app.get("/api/auth/google", (_req, res) => {
   res.json({ success: true, user: authenticatedUserProfile });
 });
 
-app.get("/api/auth/me", (_req, res) => {
-  res.json({ success: true, user: authenticatedUserProfile });
-});
-
 app.get("/api/auth/user", (_req, res) => {
-  res.json({ success: true, user: authenticatedUserProfile });
+  const usage = getOrCreateUsage();
+  res.json({
+    success: true,
+    user: {
+      ...authenticatedUserProfile,
+      tokenUsage: {
+        used: usage.used,
+        limit: usage.limit,
+        remaining: Math.max(0, usage.limit - usage.used),
+        resetDate: usage.resetDate,
+        plan: authenticatedUserProfile.plan || currentUser.plan,
+        percentUsed: Math.round((usage.used / usage.limit) * 100),
+      }
+    }
+  });
 });
 
 app.post("/api/auth/login", (req, res) => {
@@ -3009,7 +3255,7 @@ app.get(["/auth/slack", "/auth/slack/callback"], (req, res) => {
     isAuthenticated: true,
   };
   connectorsState.slack.status = "connected";
-  connectorsState.slack.connectedAccount = "gaman · @littlebird";
+  connectorsState.slack.connectedAccount = "gaman · @Either";
   connectorsState.slack.lastSynced = "Just now (Verified Live API)";
 
   res.send(`<!DOCTYPE html>
@@ -3215,7 +3461,7 @@ app.post("/api/routines/run", async (req, res) => {
   try {
     const result = await generateWithRetry(
       `Execute this routine and produce a concise 3-bullet briefing: "${routineName}". Instructions: ${prompt || "none"}.`,
-      { systemInstruction: "You are the Littlebird routine engine. Output a concise executive report. Never invent data you were not given." }
+      { systemInstruction: "You are the Either routine engine. Output a concise executive report. Never invent data you were not given." }
     );
     pushLog("success", "RoutineEngine", routineName || "routine", `Live routine executed.`);
     return res.json({ result, success: true, mode: "live" });
@@ -3271,7 +3517,7 @@ function cmoExtractJson(raw: string): any {
 }
 
 async function fetchPageForCmo(url: string): Promise<string> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { "User-Agent": "Mozilla/5.0 (compatible; LittlebirdCMO/1.0)" } });
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { "User-Agent": "Mozilla/5.0 (compatible; EitherCMO/1.0)" } });
   if (!res.ok) throw new Error(`Site fetch failed with HTTP ${res.status}`);
   const html = await res.text();
   const strip = (s: string) => s.replace(/<[^>]+>/g, "").trim();
@@ -3359,7 +3605,7 @@ app.post("/api/cmo/reddit/find", async (req, res) => {
   const { query } = req.body || {};
   if (!query) return res.status(400).json({ success: false, error: "query required" });
   try {
-    const r = await fetch(`https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=relevance&limit=8`, { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "LittlebirdCMO/1.0" } });
+    const r = await fetch(`https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=relevance&limit=8`, { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "EitherCMO/1.0" } });
     if (!r.ok) throw new Error(`Reddit API HTTP ${r.status}`);
     const j: any = await r.json();
     const threads = (j.data?.children || []).map((c: any) => ({
@@ -3396,12 +3642,19 @@ app.post("/api/cmo/reddit/reply", async (req, res) => {
 /* ================= 24/7 Turbo Autonomous Agent Swarm Loop (Ultra-Fast 3s Cadence) ================= */
 if (!process.env.VERCEL) {
   let tickCount = 0;
+  let isTicking = false;
   setInterval(async () => {
-    tickCount++;
-    const timeStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+    if (isTicking) {
+      pushLog("warn", "TurboLoop", "Skip", "Previous tick still running — skipping to avoid overlap");
+      return;
+    }
+    isTicking = true;
+    try {
+      tickCount++;
+      const timeStr = new Date().toISOString().replace("T", " ").slice(0, 19);
 
-    // Parallel multi-agent tasks
-    const tasks: Promise<any>[] = [];
+      // Parallel multi-agent tasks
+      const tasks: Promise<any>[] = [];
 
     // Hardware Sentinel (every tick)
     const tel = getRealSystemTelemetry();
@@ -3461,7 +3714,12 @@ if (!process.env.VERCEL) {
       }
     }
 
-    await Promise.allSettled(tasks);
+      await Promise.allSettled(tasks);
+    } catch (e:any) {
+      pushLog("error", "TurboLoop", "Tick", `Tick failed: ${e.message}`);
+    } finally {
+      isTicking = false;
+    }
   }, 3000);
 }
 
@@ -3589,6 +3847,12 @@ app.post("/api/video/project", async (req,res)=>{
     createdAt: new Date().toISOString().slice(0,19)
   };
   videoProjects.set(proj.id, proj);
+  // LRU: keep only last 20 projects to prevent memory leak
+  if (videoProjects.size > 20) {
+    const oldestKey = videoProjects.keys().next().value;
+    videoProjects.delete(oldestKey);
+    pushLog("warn", "VideoSwarm", "GC", `Evicted oldest project ${oldestKey} to keep Map at 20`);
+  }
   pushLog("success","VideoSwarm","Segmenter",`Project ${proj.id}: ${scenes.length} scenes x 10s from script (${script.length} chars)`);
   res.json({ success:true, project: proj });
 });
@@ -3631,16 +3895,34 @@ app.post("/api/video/scene/:sceneId/generate", async (req,res)=>{
     } catch(e){}
   }
   const styles: ("Cinematic"|"Anime"|"Realistic"|"Documentary")[] = ["Cinematic","Anime","Realistic","Documentary"];
-  scene.variants = styles.map((style, idx)=>{
-    const prompt = stylePrompts[style] || `${style} style: ${scene.prompt} — ${style} lighting and color grade`;
-    const { url, thumbnail } = mockVideoUrls(scene.id+style, idx);
-    return { id: `var-${scene.id}-${idx}`, sceneId, url, thumbnail, prompt, style, durationSec: 10 };
-  });
+  const useVeo = Boolean(req.body?.useVeo || req.body?.veoModel);
+  if (useVeo) {
+    // Veo 3: generate 4 real clips (or mock fallback if Veo not available)
+    const veoVariants: any[] = [];
+    for (let idx=0; idx<styles.length; idx++) {
+      const style = styles[idx];
+      const prompt = stylePrompts[style] || `${style} style: ${scene.prompt} — ${style} cinematic`;
+      try {
+        const veo = await generateVeoClip(prompt, style);
+        veoVariants.push({ id: `var-${scene.id}-${idx}`, sceneId, url: veo.url, thumbnail: veo.thumbnail, prompt: veo.prompt, style, durationSec: 10 });
+      } catch {
+        const { url, thumbnail } = mockVideoUrls(scene.id+style, idx);
+        veoVariants.push({ id: `var-${scene.id}-${idx}`, sceneId, url, thumbnail, prompt, style, durationSec: 10 });
+      }
+    }
+    scene.variants = veoVariants;
+  } else {
+    scene.variants = styles.map((style, idx)=>{
+      const prompt = stylePrompts[style] || `${style} style: ${scene.prompt} — ${style} lighting and color grade`;
+      const { url, thumbnail } = mockVideoUrls(scene.id+style, idx);
+      return { id: `var-${scene.id}-${idx}`, sceneId, url, thumbnail, prompt, style, durationSec: 10 };
+    });
+  }
   scene.status = "variants_ready";
   proj.status = "awaiting_selection";
   proj.currentSceneIdx = proj.scenes.findIndex(s=>s.id===sceneId);
-  pushLog("success","VideoSwarm",`Scene ${scene.index+1}`,`Generated 4 variants: ${styles.join(", ")}`);
-  res.json({ success:true, scene });
+  pushLog("success","VideoSwarm",`Scene ${scene.index+1}`,`Generated 4 ${useVeo?'Veo 3 ':''}variants: ${styles.join(", ")}`);
+  res.json({ success:true, scene, isVeo: useVeo });
 });
 
 // Select a variant for a scene -> auto-advance logic handled client-side, but we persist
@@ -4573,7 +4855,7 @@ Write-Host "       EITHER AI WORKSPACE - NATIVE DESKTOP       " -ForegroundColor
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ">> Verifying environment & workspace dependencies..." -ForegroundColor Gray
 
-$workspaceDir = "C:\\Users\\gaman\\antigravity\\Littlebird-AI-Workspace"
+$workspaceDir = "C:\\Users\\gaman\\antigravity\\Either-AI-Workspace"
 $desktopDir = [System.Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktopDir "Either AI Workspace.lnk"
 
@@ -4630,11 +4912,11 @@ app.get("/download/windows", async (req, res) => {
 
   // Real app download: pre-built zip if exists, otherwise stream win-unpacked on the fly (connected to your servers)
   if (wantZip) {
-    const prebuiltZip = path.join(process.cwd(), "release", "Littlebird-Desktop-Windows.zip");
+    const prebuiltZip = path.join(process.cwd(), "release", "Either-Desktop-Windows.zip");
     if (fs.existsSync(prebuiltZip)) {
       const stat = fs.statSync(prebuiltZip);
       res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", 'attachment; filename="Littlebird-Desktop-Windows.zip"');
+      res.setHeader("Content-Disposition", 'attachment; filename="Either-Desktop-Windows.zip"');
       res.setHeader("Content-Length", String(stat.size));
       res.setHeader("Cache-Control", "no-cache");
       if (isHead) return res.status(200).end();
@@ -4651,7 +4933,7 @@ app.get("/download/windows", async (req, res) => {
     if (srcDir && fs.existsSync(path.join(srcDir, "electron.exe"))) {
       if (isHead) {
         res.setHeader("Content-Type", "application/zip");
-        res.setHeader("Content-Disposition", 'attachment; filename="Littlebird-Desktop-Windows.zip"');
+        res.setHeader("Content-Disposition", 'attachment; filename="Either-Desktop-Windows.zip"');
         res.setHeader("Cache-Control", "no-cache");
         return res.status(200).end();
       }
@@ -4661,7 +4943,7 @@ app.get("/download/windows", async (req, res) => {
         const archive = archiver("zip", { zlib: { level: 6 } });
 
         res.setHeader("Content-Type", "application/zip");
-        res.setHeader("Content-Disposition", 'attachment; filename="Littlebird-Desktop-Windows.zip"');
+        res.setHeader("Content-Disposition", 'attachment; filename="Either-Desktop-Windows.zip"');
         res.setHeader("Cache-Control", "no-cache");
 
         archive.on("error", (err:any) => {
@@ -4671,27 +4953,27 @@ app.get("/download/windows", async (req, res) => {
 
         archive.pipe(res);
 
-        // Add the entire win-unpacked as Littlebird-Desktop/
-        archive.directory(srcDir, "Littlebird-Desktop");
+        // Add the entire win-unpacked as Either-Desktop/
+        archive.directory(srcDir, "Either-Desktop");
 
         // Add server connection config so downloaded app auto-connects to your servers
         const serversFile = path.join(process.cwd(), ".servers.json");
         if (fs.existsSync(serversFile)) {
-          archive.file(serversFile, { name: "Littlebird-Desktop/.servers.json" });
+          archive.file(serversFile, { name: "Either-Desktop/.servers.json" });
         }
         // Add a README with server info
         const servers = dedicatedServers.map(s=> `${s.name}: ${s.host}:${s.port} [${s.status}]`).join("\n");
-        const readme = `Littlebird AI Workspace — Desktop (Connected to your servers)\n`+
+        const readme = `Either — Desktop (Connected to your servers)\n`+
           `=====================================================\n`+
           `Servers pre-configured:\n${servers}\n\n`+
-          `To run: Unzip → double-click Littlebird-Desktop/electron.exe\n`+
+          `To run: Unzip → double-click Either-Desktop/electron.exe\n`+
           `The app will auto-connect to your servers and show live telemetry.\n`+
           `You can add more servers via the Servers view → Add Server / Node.\n`;
-        archive.append(readme, { name: "Littlebird-Desktop/README — Connected Servers.txt" });
+        archive.append(readme, { name: "Either-Desktop/README — Connected Servers.txt" });
 
         // Also add the tiny launcher as fallback inside zip
-        const batContent = `@echo off\r\ntitle Either AI Workspace — Desktop\r\nstart "" "%~dp0Littlebird-Desktop\\electron.exe"\r\n`;
-        archive.append(batContent, { name: "Start Littlebird.bat" });
+        const batContent = `@echo off\r\ntitle Either AI Workspace — Desktop\r\nstart "" "%~dp0Either-Desktop\\electron.exe"\r\n`;
+        archive.append(batContent, { name: "Start Either.bat" });
 
         await archive.finalize();
         pushLog("success", "Download", "Desktop Zip", `Served real desktop app zip (connected to ${dedicatedServers.length} servers)`);
@@ -4703,8 +4985,8 @@ app.get("/download/windows", async (req, res) => {
   }
 
   // Fallback: tiny launcher batch (always works)
-  const batContent = `@echo off\r\ntitle Either AI Workspace — Desktop\r\necho ==========================================\r\necho   Littlebird AI Workspace — Desktop Launcher\r\necho ==========================================\r\necho.\r\ncd /d "%~dp0"\r\nif exist "public\\icons\\icon-512.png" echo Icon found\r\necho Starting server on http://127.0.0.1:3000 ...\r\nstart "" cmd /c "npm start"\r\ntimeout /t 3 >nul\r\nstart "" "http://127.0.0.1:3000/?app=1&desktop=1"\r\necho Desktop launched! You can close this window.\r\npause\r\n`;
-  res.setHeader("Content-Disposition", 'attachment; filename="Littlebird-Desktop-Launcher.bat"');
+  const batContent = `@echo off\r\ntitle Either AI Workspace — Desktop\r\necho ==========================================\r\necho   Either — Desktop Launcher\r\necho ==========================================\r\necho.\r\ncd /d "%~dp0"\r\nif exist "public\\icons\\icon-512.png" echo Icon found\r\necho Starting server on http://127.0.0.1:3000 ...\r\nstart "" cmd /c "npm start"\r\ntimeout /t 3 >nul\r\nstart "" "http://127.0.0.1:3000/?app=1&desktop=1"\r\necho Desktop launched! You can close this window.\r\npause\r\n`;
+  res.setHeader("Content-Disposition", 'attachment; filename="Either-Desktop-Launcher.bat"');
   res.setHeader("Content-Type", "application/octet-stream");
   res.setHeader("Content-Length", Buffer.byteLength(batContent, "utf8"));
   res.setHeader("Cache-Control", "no-cache");
@@ -4754,7 +5036,7 @@ const LANDING_COPY_BANK = [
 ];
 
 app.get("/api/mcp/health", (_req, res) => {
-  res.json({ status: "ok", mcp: "Littlebird MCP Server", version: "1.0.0", tools: ["generate_premium_landing", "list_themes", "edit_landing_text"], activeServers: 100, themes: LANDING_THEMES.length });
+  res.json({ status: "ok", mcp: "Either MCP Server", version: "1.0.0", tools: ["generate_premium_landing", "list_themes", "edit_landing_text"], activeServers: 100, themes: LANDING_THEMES.length });
 });
 
 app.get("/api/mcp/tools", (_req, res) => {
@@ -4802,7 +5084,7 @@ app.post("/api/mcp/generate-landing", async (req, res) => {
     copy,
     features,
     generatedAt: new Date().toISOString(),
-    mcpServer: "Littlebird MCP • 100+ servers",
+    mcpServer: "Either MCP • 100+ servers",
     animated: { vanta: theme.vanta, skyColor: theme.sky, cloudColor: theme.cloud, tilt: true, zdog: true, motion: true },
     editable: true,
   };

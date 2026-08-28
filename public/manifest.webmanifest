@@ -1,6 +1,6 @@
 {
-  "name": "Littlebird AI Workspace",
-  "short_name": "Littlebird",
+  "name": "Either",
+  "short_name": "Either",
   "description": "Unified AI workspace - chat, 15 live connectors, trading desk, and marketing swarm. Runs on your machine.",
   "start_url": "/",
   "scope": "/",

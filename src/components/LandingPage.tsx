@@ -183,7 +183,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenTrad
           {[
             { icon: Mail, title:'Gmail & Drive Live', desc:'OAuth RO — 8 emails, docs search, premium glass', grad:'from-violet-600 to-fuchsia-600' },
             { icon: TrendingUp, title:'Binance Real-Time', desc:'Klines + RSI/EMA/BB — live WebSocket, glow', grad:'from-emerald-600 to-teal-600' },
-            { icon: Film, title:'Movie Swarm', desc:'Script → 10s ×4 → pick → Editor syncs — bird card', grad:'from-cyan-600 to-blue-600' },
+            { icon: Film, title:'Movie Swarm', desc:'Script → 10s ×4 → pick → Editor syncs — smart canvas', grad:'from-cyan-600 to-blue-600' },
           ].map((f,i)=>(
             <motion.div key={f.title} initial={{ opacity:0, y:16 }} whileInView={{ opacity:1, y:0 }} viewport={{ once:true }} transition={{ delay:i*0.07 }} className="tilt-premium group rounded-[22px] bg-white/[0.04] backdrop-blur-xl border border-white/10 p-6 hover:bg-white/[0.06] hover:border-white/15 transition will-change-transform" style={{ transformStyle:'preserve-3d' } as any}>
               <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${f.grad} grid place-items-center text-white shadow-lg mb-4`} style={{ transform:'translateZ(28px)' } as any}><f.icon className="w-5 h-5" /></div>
@@ -198,7 +198,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenTrad
       {/* Install — 100% Cloud Connected Native App */}
       <section id="install" className="max-w-[980px] mx-auto px-4 sm:px-6 pb-10">
         <div className="rounded-[24px] bg-white text-stone-900 p-6 sm:p-8 shadow-[0_24px_64px_rgba(0,0,0,0.28)] border border-stone-200">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h3 className="font-serif font-bold text-xl flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Either AI Windows Desktop App</h3>
               <p className="text-sm text-stone-600 mt-1">Runs 100% on our Sovereign Cloud Servers. Zero terminal or local server commands required.</p>
@@ -216,8 +216,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenTrad
       </section>
 
       <footer className="border-t border-white/5 bg-[#050508]/50 backdrop-blur py-6 text-center text-xs text-white/30">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/60"><EitherLogo className="w-4 h-4" /> Either AI • Premium Dark • Bird Card • 21st.dev • Vanta • Zdog</div>
-        <div className="mt-2">© 2026 Sovereign Desktop — Premium UI built from scratch around your bird.</div>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/60"><EitherLogo className="w-4 h-4" /> Either AI • Sovereign Intelligence OS</div>
+        <div className="mt-2">© 2026 Either AI — Sovereign Intelligence & Multi-Agent Workspace.</div>
       </footer>
     </div>
   );

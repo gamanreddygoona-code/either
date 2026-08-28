@@ -327,10 +327,29 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
               );
             })}
             {isLoading && (
-              <div className="flex items-start space-x-3.5 animate-fadeIn">
-                <div className="w-8 h-8 rounded-full bg-stone-900 text-white flex items-center justify-center shrink-0"><EitherLogo className="w-4 h-4" /></div>
-                <div className="bg-white border border-[#ded7c8] rounded-2xl rounded-tl-none p-4 text-xs text-stone-600 flex items-center space-x-2 shadow-2xs">
-                  <RotateCw className="w-4 h-4 animate-spin text-stone-500" /><span className="animate-pulse font-medium">Either reasoning with connected enterprise tools...</span>
+              <div className="flex items-start space-x-3.5 animate-fadeIn w-full">
+                <div className="w-8 h-8 rounded-full bg-stone-900 text-white flex items-center justify-center shrink-0 shadow animate-pulse"><EitherLogo className="w-4 h-4" /></div>
+                <div className="flex-1 max-w-xl bg-white border border-[#ded7c8] rounded-2xl rounded-tl-none p-3.5 shadow-sm space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-medium text-stone-700">
+                    <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-violet-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-violet-600"></span></span>
+                    <span>Either reasoning with {connectors.filter(c=>c.status==="connected").length} connected tools…</span>
+                    <span className="ml-auto flex gap-1"><span className="w-1.5 h-1.5 rounded-full bg-stone-300 animate-bounce" /><span className="w-1.5 h-1.5 rounded-full bg-stone-300 animate-bounce" style={{ animationDelay:'0.15s' }} /><span className="w-1.5 h-1.5 rounded-full bg-stone-300 animate-bounce" style={{ animationDelay:'0.3s' }} /></span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {connectors.filter(c=>c.status==="connected").slice(0,6).map(c=>(
+                      <span key={c.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#f7f4ec] border border-[#e8e3d8] text-[10px] font-medium text-stone-700">
+                        <AppIconRenderer iconName={c.icon} className="w-3 h-3" /> {c.name} • live
+                      </span>
+                    ))}
+                    {connectors.filter(c=>c.status==="connected").length===0 && <span className="text-[11px] text-stone-400">No tools connected — add via + menu</span>}
+                  </div>
+                  <div className="h-1 w-full bg-stone-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-violet-600 via-cyan-500 to-amber-400 animate-[shimmer_1.6s_ease-in-out_infinite]" style={{ width:'60%' }} />
+                  </div>
+                  <div className="text-[10px] font-mono text-stone-400 flex items-center justify-between">
+                    <span>Reading {connectors.filter(c=>c.status==="connected").map(c=>c.name).slice(0,3).join(" • ") || "workspace"} • {selectedModel}</span>
+                    <span className="flex items-center gap-1"><RotateCw className="w-3 h-3 animate-spin" /> {new Date().toLocaleTimeString()}</span>
+                  </div>
                 </div>
               </div>
             )}
