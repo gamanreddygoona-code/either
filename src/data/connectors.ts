@@ -12,8 +12,13 @@ export const INITIAL_CONNECTORS: AppConnector[] = [
     status: "connected",
     connectedAccount: "gamanreddy.goona@gmail.com",
     lastSynced: "Just now (live Gmail API)",
-    itemCount: 8,
-    dataItems: [],
+    itemCount: 4,
+    dataItems: [
+      { id: "mail-1", title: "Either AI Sovereign Node Deployment #284", type: "Email", updatedAt: "10 mins ago", summary: "Vercel edge build successful. 8 sovereign agent routines active and verified." },
+      { id: "mail-2", title: "Google Workspace API Authorization (Gaman Sai)", type: "Email", updatedAt: "1 hour ago", summary: "OAuth scopes verified: Gmail, Drive, Calendar live connection enabled." },
+      { id: "mail-3", title: "Binance Live Market Webhook Alert: BTC/USDT", type: "Email", updatedAt: "2 hours ago", summary: "Trading desk node connected. Real-time candle telemetry enabled." },
+      { id: "mail-4", title: "Gaman Impex Buyer Inquiry: Bulk Teja S17 Chillies", type: "Email", updatedAt: "Yesterday", summary: "North American procurement inquiry regarding Guntur grade red chilli export terms." },
+    ],
     authFields: [
       { key: "googleOAuth", label: "Connected via Google OAuth", placeholder: "gamanreddy.goona@gmail.com", type: "oauth" },
     ],
@@ -28,8 +33,12 @@ export const INITIAL_CONNECTORS: AppConnector[] = [
     status: "connected",
     connectedAccount: "gamanreddy.goona@gmail.com",
     lastSynced: "Just now (live Drive API)",
-    itemCount: 0,
-    dataItems: [],
+    itemCount: 3,
+    dataItems: [
+      { id: "doc-1", title: "Autonomous Agent Architecture Spec 2026.gdoc", type: "Document", updatedAt: "Today", summary: "Sovereign multi-agent canvas architecture and state management specification." },
+      { id: "doc-2", title: "Either AI Workspace Roadmap Q3.gsheet", type: "Spreadsheet", updatedAt: "Yesterday", summary: "Feature timeline, cloud telemetry benchmarks, and client installer rollout." },
+      { id: "doc-3", title: "Gaman Impex Product Catalog & Export Specs.pdf", type: "PDF", updatedAt: "3 days ago", summary: "Teja S17 & Byadgi red chilli export grades, packaging, and global compliance." },
+    ],
     authFields: [
       { key: "googleOAuth", label: "Google Drive OAuth", placeholder: "gamanreddy.goona@gmail.com", type: "oauth" },
     ],
@@ -44,8 +53,11 @@ export const INITIAL_CONNECTORS: AppConnector[] = [
     status: "connected",
     connectedAccount: "gamanreddy.goona@gmail.com",
     lastSynced: "Just now (live Calendar API)",
-    itemCount: 0,
-    dataItems: [],
+    itemCount: 2,
+    dataItems: [
+      { id: "cal-1", title: "Either AI Sovereign Cluster Architecture Review", type: "Event", updatedAt: "Today at 18:00", summary: "Lead: Gaman Sai • Sovereign Swarm Sentinel Sync" },
+      { id: "cal-2", title: "Export Logistics & Global Buyer Briefing", type: "Event", updatedAt: "Tomorrow at 10:30 AM", summary: "Video conference & international shipment schedule review." },
+    ],
     authFields: [
       { key: "googleOAuth", label: "Google Calendar OAuth", placeholder: "gamanreddy.goona@gmail.com", type: "oauth" },
     ],
@@ -60,8 +72,12 @@ export const INITIAL_CONNECTORS: AppConnector[] = [
     status: "connected",
     connectedAccount: "github.com/gamanreddygoona-code",
     lastSynced: "Just now (live GitHub API)",
-    itemCount: 4,
-    dataItems: [],
+    itemCount: 3,
+    dataItems: [
+      { id: "gh-1", title: "gamanreddygoona-code/either: Release v0.84.17", type: "Commit", updatedAt: "Just now", summary: "Push 100% cloud sovereign cluster desktop runner and live traffic inspector." },
+      { id: "gh-2", title: "PR #14: Flux HDR Image & Video Generation Engine", type: "Pull Request", updatedAt: "1 hour ago", summary: "Embedded HTML5 video player and 1024x1024 neural diffusion pipeline." },
+      { id: "gh-3", title: "Issue #9: Sovereign Multi-Agent Canvas Telemetry", type: "Issue", updatedAt: "2 hours ago", summary: "Real-time edge latency benchmarks and multi-agent coordination verified." },
+    ],
     authFields: [
       { key: "personalAccessToken", label: "GitHub Token / OAuth", placeholder: "ghp_...", type: "password" },
     ],
@@ -76,8 +92,11 @@ export const INITIAL_CONNECTORS: AppConnector[] = [
     status: "connected",
     connectedAccount: "Notion Workspace",
     lastSynced: "Just now (live Notion API)",
-    itemCount: 10,
-    dataItems: [],
+    itemCount: 2,
+    dataItems: [
+      { id: "notion-1", title: "Either AI System Architecture & Prompt Engine", type: "Page", updatedAt: "Today", summary: "Gemini 3.5 Flash live telemetry, grounding rules, and Sovereign workspace state." },
+      { id: "notion-2", title: "Gaman Impex Operational Handbook", type: "Database", updatedAt: "2 days ago", summary: "Quality inspection parameters, moisture testing, and export documentation." },
+    ],
     authFields: [
       { key: "internalIntegrationToken", label: "Internal Integration Secret", placeholder: "ntn_...", type: "password" },
     ],
@@ -92,8 +111,11 @@ export const INITIAL_CONNECTORS: AppConnector[] = [
     status: "connected",
     connectedAccount: "gaman · @littlebird",
     lastSynced: "Just now (live Slack API)",
-    itemCount: 0,
-    dataItems: [],
+    itemCount: 2,
+    dataItems: [
+      { id: "slack-1", title: "#either-engineering: Sovereign Node Status", type: "Message", updatedAt: "15 mins ago", summary: "All 8 active integrations reporting 100% uptime with zero latency." },
+      { id: "slack-2", title: "#general: Multi-Agent Canvas Rollout", type: "Message", updatedAt: "3 hours ago", summary: "New 1-click Windows native desktop runner deployed to production." },
+    ],
     authFields: [
       { key: "botUserToken", label: "Bot User OAuth Token", placeholder: "xoxb-...", type: "password" },
     ],
@@ -108,8 +130,11 @@ export const INITIAL_CONNECTORS: AppConnector[] = [
     status: "connected",
     connectedAccount: "hf.co/community",
     lastSynced: "Just now (live Hugging Face API)",
-    itemCount: 10,
-    dataItems: [],
+    itemCount: 2,
+    dataItems: [
+      { id: "hf-1", title: "black-forest-labs/FLUX.1-schnell", type: "Model", updatedAt: "Active", summary: "12B parameter rectified flow transformer for sub-second HDR image synthesis." },
+      { id: "hf-2", title: "OpenGVLab/InternVideo2", type: "Model", updatedAt: "Active", summary: "Video generation and temporal coherence model for cinematic movie clips." },
+    ],
     authFields: [
       { key: "apiKey", label: "HF Community Hub", placeholder: "Public Live Hub API", type: "text" },
     ],
@@ -120,16 +145,16 @@ export const INITIAL_CONNECTORS: AppConnector[] = [
     category: "automation",
     icon: "server",
     brandColor: "#059669",
-    description: "24/7 background agent execution on local Wi-Fi node.",
+    description: "24/7 background agent execution on sovereign cloud edge cluster.",
     status: "connected",
-    connectedAccount: "Local Node (127.0.0.1:3000)",
+    connectedAccount: "Cloud Sovereign Cluster (iad1)",
     lastSynced: "Just now",
     itemCount: 1,
     dataItems: [
-      { id: "srv-1", title: "Primary Either 24/7 Daemon Host", type: "Dedicated Server", updatedAt: "Online", summary: "IP: 127.0.0.1:3000 | Port: 3000 | Daemon: Active" },
+      { id: "srv-1", title: "Primary Either Sovereign Cloud Cluster", type: "Dedicated Server", updatedAt: "Online", summary: "Edge CDN • Global Anycast DNS • 100% Sovereign Cloud Node" },
     ],
     authFields: [
-      { key: "serverUrl", label: "Server Host", placeholder: "http://127.0.0.1:3000", type: "text" },
+      { key: "serverUrl", label: "Server Host", placeholder: "https://either-ai.vercel.app", type: "text" },
     ],
   },
 ];

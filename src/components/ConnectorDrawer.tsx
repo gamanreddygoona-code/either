@@ -203,8 +203,12 @@ export const ConnectorDrawer: React.FC<ConnectorDrawerProps> = ({
   if (!isOpen) return null;
 
   // Active list vs Available list
-  const activeConnectors = connectors.filter((c) => c.status === "connected" || connectors.length <= 8);
-  const displayList = activeTab === "connected" ? activeConnectors : AVAILABLE_CONNECTORS;
+  const activeConnectors = connectors.filter((c) => c.status === "connected");
+  const availableList = [
+    ...connectors.filter((c) => c.status !== "connected"),
+    ...AVAILABLE_CONNECTORS.filter((a) => !connectors.some((c) => c.id === a.id))
+  ];
+  const displayList = activeTab === "connected" ? (activeConnectors.length > 0 ? activeConnectors : connectors) : availableList;
 
   const currentConnector = [...connectors, ...AVAILABLE_CONNECTORS].find((c) => c.id === activeId) || activeConnectors[0] || connectors[0];
   const authConfig = CONNECTOR_AUTH[currentConnector.id];
