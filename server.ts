@@ -31,6 +31,12 @@ const adminOk = (req: any) =>
   Boolean(process.env.EITHER_ADMIN_TOKEN) && req.headers["x-lb-token"] === process.env.EITHER_ADMIN_TOKEN;
 
 app.use(express.json());
+app.use((req, _res, next) => {
+  if (req.url === "/api" && req.headers["x-matched-path"]) {
+    req.url = req.headers["x-matched-path"] as string;
+  }
+  next();
+});
 
 /* ================= real system telemetry ================= */
 
@@ -1458,40 +1464,25 @@ async function ensureGoogleAccessToken(): Promise<string> {
 }
 
 app.get("/auth/google", (req, res) => {
-  const force = req.query.force === "1";
-  // Only auto-connect if we have a valid, non-expired access token
-  const hasValidToken = Boolean(googleTokens.access_token && Date.now() < (googleTokens.expiry || 0) - 60000);
-  if (hasValidToken && !force) {
-    const email = googleTokens.email || "gamanreddy.goona@gmail.com";
-    ["gmail", "gdrive", "gcalendar"].forEach((id) => {
-      if (connectorsState[id]) {
-        connectorsState[id].status = "connected";
-        connectorsState[id].connectedAccount = email;
-        connectorsState[id].lastSynced = "Just now (Google OAuth)";
-      }
-    });
-    pushLog("success", "GoogleAuth", "OAuth2", `Completed OAuth sync for ${email}`);
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  if (!googleClientId || googleClientId.trim() === "") {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.send(renderOAuthSuccessHtml("Google", email));
-  }
-  if (!googleOAuthConfigured()) {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(400).send(`<html><body style="font-family:system-ui;padding:40px"><h3>Google OAuth not configured</h3><p>Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env and restart.</p><p><a href="/api/connectors">Back</a></p></body></html>`);
-  }
-  if (!force && (googleTokens.access_token || googleTokens.email)) {
-    // Has stale token but not valid — require force to re-auth
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>Google session expired</h3><p>Your previous Google session for ${googleTokens.email || "unknown"} has expired.</p><p><a href="/auth/google?force=1" style="display:inline-block;padding:10px 20px;background:#1a73e8;color:#fff;text-decoration:none;border-radius:8px">Re-authenticate with Google</a></p><p style="margin-top:16px"><a href="/api/connectors">Back</a></p></body></html>`);
+    return res.status(400).send("<html><body style='font-family:system-ui;padding:40px'><h3>Google OAuth Not Configured</h3><p>Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your .env file.</p></body></html>");
   }
 
-  const url = new URL(GOOGLE_AUTH_BASE);
-  url.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID!);
-  url.searchParams.set("redirect_uri", googleRedirectUri(req));
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", GMAIL_SCOPES);
-  url.searchParams.set("access_type", "offline");
-  url.searchParams.set("prompt", "consent");
-  res.redirect(url.toString());
+  const redirectUri = googleRedirectUri(req);
+  const scopes = [
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly"
+  ].join(" ");
+
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent`;
+  
+  pushLog("info", "GoogleAuth", "OAuth2", `Redirecting client to Google OAuth: ${redirectUri}`);
+  return res.redirect(authUrl);
 });
 
 app.get("/auth/google/callback", async (req, res) => {
@@ -1651,8 +1642,17 @@ let githubOAuthState: string = "";
 function githubOAuthConfigured() {
   return Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 }
-function githubRedirectUri() {
-  return process.env.GITHUB_REDIRECT_URI || `http://localhost:${PORT}/auth/github/callback`;
+function githubRedirectUri(req?: any) {
+  if (process.env.GITHUB_REDIRECT_URI) return process.env.GITHUB_REDIRECT_URI;
+  if (req) {
+    const host = req.get ? req.get("host") : (req.headers && req.headers.host);
+    if (host && host.includes("vercel.app")) return `https://${host}/auth/github/callback`;
+    if (host) {
+      const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+      return `${proto}://${host}/auth/github/callback`;
+    }
+  }
+  return `http://localhost:${PORT}/auth/github/callback`;
 }
 
 app.get("/auth/github", (req, res) => {
@@ -1664,7 +1664,7 @@ app.get("/auth/github", (req, res) => {
   <li>Open <a href="https://github.com/settings/developers">GitHub → Settings → Developer settings → OAuth Apps</a></li>
   <li>Click <b>New OAuth App</b></li>
   <li>Homepage URL: <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">http://localhost:${PORT}</code><br>
-  Authorization callback URL: <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">${githubRedirectUri()}</code></li>
+  Authorization callback URL: <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">${githubRedirectUri(req)}</code></li>
   <li>Add these two lines to <b>.env</b> and restart the server:<br>
   <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">GITHUB_CLIENT_ID=…</code><br>
   <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">GITHUB_CLIENT_SECRET=…</code></li>
@@ -1676,7 +1676,7 @@ app.get("/auth/github", (req, res) => {
   githubOAuthState = crypto.randomBytes(16).toString("hex");
   const url = new URL("https://github.com/login/oauth/authorize");
   url.searchParams.set("client_id", process.env.GITHUB_CLIENT_ID!);
-  url.searchParams.set("redirect_uri", githubRedirectUri());
+  url.searchParams.set("redirect_uri", githubRedirectUri(req));
   url.searchParams.set("scope", "repo read:user user:email");
   url.searchParams.set("state", githubOAuthState);
   res.redirect(url.toString());
@@ -1699,7 +1699,7 @@ app.get("/auth/github/callback", async (req, res) => {
         client_id: process.env.GITHUB_CLIENT_ID!,
         client_secret: process.env.GITHUB_CLIENT_SECRET!,
         code,
-        redirect_uri: githubRedirectUri(),
+        redirect_uri: githubRedirectUri(req),
       }),
       signal: AbortSignal.timeout(10000),
     });
@@ -2987,47 +2987,6 @@ function renderOAuthSuccessHtml(providerName: string, accountEmail: string) {
 </html>`;
 }
 
-app.get("/auth/google", (_req, res) => {
-  authenticatedUserProfile.isAuthenticated = true;
-  authenticatedUserProfile.lastLogin = new Date().toISOString();
-  
-  // Mark Google connectors as connected
-  ["gmail", "gdrive", "gcalendar"].forEach((id) => {
-    if (connectorsState[id]) {
-      connectorsState[id].status = "connected";
-      connectorsState[id].connectedAccount = authenticatedUserProfile.email;
-      connectorsState[id].lastSynced = "Just now (Google OAuth)";
-    }
-  });
-
-  pushLog("success", "GoogleAuth", "OAuth2", `Completed OAuth handshake for ${authenticatedUserProfile.email}`);
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(renderOAuthSuccessHtml("Google", authenticatedUserProfile.email));
-});
-
-app.get("/auth/google/callback", (_req, res) => {
-  authenticatedUserProfile.isAuthenticated = true;
-  authenticatedUserProfile.lastLogin = new Date().toISOString();
-  pushLog("success", "GoogleAuth", "OAuth2", `Completed Google OAuth callback for ${authenticatedUserProfile.email}`);
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(renderOAuthSuccessHtml("Google", authenticatedUserProfile.email));
-});
-
-app.get("/auth/github", (_req, res) => {
-  if (connectorsState.github) {
-    connectorsState.github.status = "connected";
-    connectorsState.github.connectedAccount = "github.com/gamanreddygoona-code";
-    connectorsState.github.lastSynced = "Just now (GitHub OAuth)";
-  }
-  pushLog("success", "GitHubAuth", "OAuth2", "Completed GitHub OAuth handshake for @gamanreddygoona-code");
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(renderOAuthSuccessHtml("GitHub", "gamanreddygoona-code"));
-});
-
-app.get("/auth/github/callback", (_req, res) => {
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(renderOAuthSuccessHtml("GitHub", "gamanreddygoona-code"));
-});
 
 app.get("/api/auth/google", (_req, res) => {
   authenticatedUserProfile.isAuthenticated = true;
@@ -3094,166 +3053,7 @@ app.get(["/download/windows", "/download/either-ai-setup.bat", "/download", "/do
   res.redirect("/?app=1&desktop=1");
 });
 
-/* ================= Dedicated OAuth Endpoints (Google & GitHub) ================= */
 
-app.get("/auth/google", (req, res) => {
-  const googleClientId = process.env.GOOGLE_CLIENT_ID;
-  if (!googleClientId || googleClientId.trim() === "") {
-    return res.status(400).send("<html><body style='font-family:system-ui;padding:40px'><h3>Google OAuth Not Configured</h3><p>Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your .env file.</p></body></html>");
-  }
-
-  const host = req.get("host") || "localhost:3000";
-  const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-  const redirectUri = `${protocol}://${host}/auth/google/callback`;
-  const scopes = [
-    "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/userinfo.profile",
-    "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/calendar.readonly"
-  ].join(" ");
-
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent`;
-  
-  return res.redirect(authUrl);
-});
-
-app.get("/auth/google/callback", async (req, res) => {
-  const code = req.query.code as string;
-  const error = req.query.error as string;
-
-  if (error) {
-    return res.status(400).send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>Google Authorization Error</h3><p>${error}</p><p><a href="/auth/google">Try Again</a></p></body></html>`);
-  }
-
-  if (!code) {
-    return res.status(400).send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>Missing Code</h3><p>No authorization code received from Google.</p><p><a href="/auth/google">Try Again</a></p></body></html>`);
-  }
-
-  const host = req.get("host") || "localhost:3000";
-  const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-  const redirectUri = `${protocol}://${host}/auth/google/callback`;
-
-  try {
-    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: redirectUri,
-        grant_type: "authorization_code",
-      }),
-    });
-
-    const tokenData = await tokenRes.json();
-
-    if (tokenData.access_token) {
-      googleTokens.access_token = tokenData.access_token;
-      googleTokens.refresh_token = tokenData.refresh_token || googleTokens.refresh_token;
-      googleTokens.expiry = Date.now() + (tokenData.expires_in || 3600) * 1000;
-
-      // Fetch user profile from Google
-      let userEmail = "gamanreddy.goona@gmail.com";
-      let userName = "Gaman Sai";
-      let userAvatar = "";
-
-      try {
-        const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` },
-        });
-        const userInfo = await userRes.json();
-        if (userInfo.email) userEmail = userInfo.email;
-        if (userInfo.name) userName = userInfo.name;
-        if (userInfo.picture) userAvatar = userInfo.picture;
-      } catch (e) {}
-
-      googleTokens.email = userEmail;
-      saveGoogleTokens();
-
-      ["gmail", "gdrive", "gcalendar"].forEach((id) => {
-        if (connectorsState[id]) {
-          connectorsState[id].status = "connected";
-          connectorsState[id].connectedAccount = userEmail;
-          connectorsState[id].lastSynced = "Just now (Live Google OAuth)";
-        }
-      });
-
-      const authedUser = {
-        name: userName,
-        email: userEmail,
-        avatarUrl: userAvatar,
-        isAuthenticated: true,
-      };
-
-      return res.send(`<!DOCTYPE html>
-<html>
-<head><title>Authentication Successful</title></head>
-<body style="font-family:system-ui;background:#090a0f;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-  <div style="background:#12141c;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:36px;text-align:center;max-width:380px">
-    <h2 style="margin:0 0 10px 0;color:#34a853">✓ Google Connected!</h2>
-    <p style="font-size:13px;color:#94a3b8">Logged in as <b>${userEmail}</b>. Syncing Gmail, Drive, and Calendar...</p>
-    <script>
-      if (window.opener) {
-        window.opener.postMessage({ type: "EITHER_AUTH_SUCCESS", user: ${JSON.stringify(authedUser)} }, "*");
-        setTimeout(() => window.close(), 500);
-      } else {
-        window.location.href = "/?app=1";
-      }
-    </script>
-  </div>
-</body>
-</html>`);
-    } else {
-      return res.status(400).send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>Google Token Exchange Failed</h3><pre style="text-align:left;background:#1e1e1e;color:#fff;padding:15px;border-radius:8px">${JSON.stringify(tokenData, null, 2)}</pre><p><a href="/auth/google">Try Again</a></p></body></html>`);
-    }
-  } catch (err: any) {
-    return res.status(500).send(`<html><body style="font-family:system-ui;padding:40px;text-align:center"><h3>OAuth Exchange Error</h3><p>${err.message}</p><p><a href="/auth/google">Try Again</a></p></body></html>`);
-  }
-});
-
-app.get(["/auth/github", "/auth/github/callback"], (req, res) => {
-  const ghObj = {
-    name: "Gaman Sai",
-    email: "gamanreddy.goona@gmail.com",
-    avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
-    isAuthenticated: true,
-  };
-  connectorsState.github.status = "connected";
-  connectorsState.github.connectedAccount = "github.com/gamanreddygoona-code";
-  connectorsState.github.lastSynced = "Just now (Verified Live API)";
-
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>GitHub Authorization</title>
-  <style>
-    body { font-family: sans-serif; background: #0d1117; color: #c9d1d9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 28px; max-width: 360px; text-align: center; }
-    .btn { background: #238636; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 16px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h2>Authorize @gamanreddygoona-code</h2>
-    <p style="font-size: 13px; color: #8b949e;">Connect GitHub repositories to Either AI Workspace.</p>
-    <button class="btn" onclick="auth()">Authorize Either AI</button>
-  </div>
-  <script>
-    function auth() {
-      if (window.opener) {
-        window.opener.postMessage({ type: "EITHER_AUTH_SUCCESS", user: ${JSON.stringify(ghObj)} }, "*");
-        setTimeout(() => window.close(), 300);
-      } else {
-        window.location.href = "/?app=1";
-      }
-    }
-  </script>
-</body>
-</html>`);
-});
 
 app.get(["/auth/discord", "/auth/discord/callback"], (req, res) => {
   const discordObj = {
