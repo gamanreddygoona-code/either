@@ -172,6 +172,85 @@ export const ZapierIcon: React.FC<{ className?: string }> = ({ className = "w-4 
   </svg>
 );
 
+export const StripeIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#635BFF" />
+    <path d="M13.5 10.2C13.5 9.4 12.8 8.9 11.7 8.9C10.3 8.9 9.1 9.4 8.2 9.9L7.5 7.6C8.7 7 10.3 6.6 11.9 6.6C14.8 6.6 16.7 8.1 16.7 10.5C16.7 14.1 11.7 13.6 11.7 15.3C11.7 16.3 12.6 16.8 13.9 16.8C15.4 16.8 16.8 16.2 17.7 15.6L18.4 17.9C17.2 18.6 15.4 19.1 13.6 19.1C10.5 19.1 8.5 17.6 8.5 15.1C8.5 11.4 13.5 12 13.5 10.2Z" fill="#FFFFFF" />
+  </svg>
+);
+
+export const FigmaIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#1E1E1E" />
+    <path d="M8 12C8 10.9 8.9 10 10 10H12V14H10C8.9 14 8 13.1 8 12Z" fill="#0ACF83" />
+    <path d="M12 6H10C8.9 6 8 6.9 8 8C8 9.1 8.9 10 10 10H12V6Z" fill="#F24E1E" />
+    <path d="M12 6H14C15.1 6 16 6.9 16 8C16 9.1 15.1 10 14 10H12V6Z" fill="#FF7262" />
+    <path d="M12 10H14C15.1 10 16 10.9 16 12C16 13.1 15.1 14 14 14H12V10Z" fill="#1ABCFE" />
+    <path d="M8 16C8 14.9 8.9 14 10 14H12V16C12 17.1 11.1 18 10 18C8.9 18 8 17.1 8 16Z" fill="#A259FF" />
+  </svg>
+);
+
+export const JiraIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#0052CC" />
+    <path d="M12 4L7 9L12 14L17 9L12 4Z" fill="#FFFFFF" fillOpacity="0.8" />
+    <path d="M12 10L7 15L12 20L17 15L12 10Z" fill="#FFFFFF" />
+  </svg>
+);
+
+export const SupabaseIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#1C1C1C" />
+    <path d="M12.9 3.5L5.5 13.2C5.1 13.7 5.5 14.5 6.1 14.5H11.5L10.8 20.5C10.7 21.1 11.4 21.5 11.9 21L18.8 11.8C19.2 11.3 18.8 10.5 18.2 10.5H13.2L13.9 4C14 3.4 13.4 3 12.9 3.5Z" fill="#3ECF8E" />
+  </svg>
+);
+
+export const VercelIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#000000" />
+    <path d="M12 6L18 17H6L12 6Z" fill="#FFFFFF" />
+  </svg>
+);
+
+export const AirtableIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#FCB400" />
+    <path d="M11.5 5.5L5 8.5L11.5 11.5L18 8.5L11.5 5.5Z" fill="#FFFFFF" />
+    <path d="M5 11V16.5L11 19.5V14L5 11Z" fill="#FFFFFF" fillOpacity="0.8" />
+    <path d="M18 11V16.5L12 19.5V14L18 11Z" fill="#FFFFFF" fillOpacity="0.6" />
+  </svg>
+);
+
+export const HubSpotIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#FF7A59" />
+    <path d="M15.5 10.5V8.2C16.4 7.8 17 6.9 17 6C17 4.9 16.1 4 15 4C13.9 4 13 4.9 13 6C13 6.9 13.6 7.8 14.5 8.2V10.5C13.8 10.8 13.2 11.4 12.8 12.1L9.7 10.3C9.8 9.9 9.8 9.6 9.8 9.2C9.8 7.8 8.7 6.7 7.3 6.7C5.9 6.7 4.8 7.8 4.8 9.2C4.8 10.6 5.9 11.7 7.3 11.7C8 11.7 8.6 11.4 9.1 11L12.1 12.8C12 13.2 12 13.6 12 14C12 15.7 13.3 17 15 17C16.7 17 18 15.7 18 14C18 12.3 16.9 11 15.5 10.5Z" fill="#FFFFFF" />
+  </svg>
+);
+
+export const ShopifyIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#95BF47" />
+    <path d="M15.5 6L14 6C14 5 13 4.2 12 4.2C11 4.2 10 5 10 6L8.5 6C8.2 6 8 6.2 8 6.5L6.5 17C6.5 17.5 7 18 7.5 18H16.5C17 18 17.5 17.5 17.5 17L16 6.5C16 6.2 15.8 6 15.5 6ZM12 5.5C12.5 5.5 13 5.8 13 6.2H11C11 5.8 11.5 5.5 12 5.5Z" fill="#FFFFFF" />
+  </svg>
+);
+
+export const TrelloIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#0079BF" />
+    <rect x="6" y="6" width="4.5" height="10" rx="1.5" fill="#FFFFFF" />
+    <rect x="13.5" y="6" width="4.5" height="6.5" rx="1.5" fill="#FFFFFF" />
+  </svg>
+);
+
+export const PostmanIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#FF6C37" />
+    <circle cx="12" cy="12" r="6" stroke="#FFFFFF" strokeWidth="2" fill="none" />
+    <path d="M12 9V12L14.5 14.5" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
 export const AppIconRenderer: React.FC<{ iconName: string; className?: string }> = ({ iconName, className = "w-4 h-4" }) => {
   switch (iconName.toLowerCase()) {
     case "google":
@@ -200,6 +279,16 @@ export const AppIconRenderer: React.FC<{ iconName: string; className?: string }>
     case "asana": return <AsanaIcon className={className} />;
     case "dropbox": return <DropboxIcon className={className} />;
     case "zapier": return <ZapierIcon className={className} />;
+    case "stripe": return <StripeIcon className={className} />;
+    case "figma": return <FigmaIcon className={className} />;
+    case "jira": return <JiraIcon className={className} />;
+    case "supabase": return <SupabaseIcon className={className} />;
+    case "vercel": return <VercelIcon className={className} />;
+    case "airtable": return <AirtableIcon className={className} />;
+    case "hubspot": return <HubSpotIcon className={className} />;
+    case "shopify": return <ShopifyIcon className={className} />;
+    case "trello": return <TrelloIcon className={className} />;
+    case "postman": return <PostmanIcon className={className} />;
     default: return <EitherLogo className={className} />;
   }
 };

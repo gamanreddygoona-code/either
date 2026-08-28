@@ -246,8 +246,11 @@ type ConnectorState = {
   status: string; connectedAccount: string; lastSynced: string;
   itemCount: number; dataItems: any[]; live?: boolean; credentialsConfigured?: boolean;
 };
-const CONNECTOR_IDS = ["gmail", "whatsapp", "github", "gcalendar", "gdrive", "instagram",
-  "facebook", "discord", "notion", "slack", "linear", "zapier", "dropbox", "asana", "huggingface"];
+const CONNECTOR_IDS = [
+  "gmail", "whatsapp", "github", "gcalendar", "gdrive", "instagram",
+  "facebook", "discord", "notion", "slack", "linear", "zapier", "dropbox", "asana", "huggingface",
+  "stripe", "figma", "jira", "supabase", "vercel", "airtable", "hubspot", "shopify", "trello", "postman"
+];
 let connectorsState: Record<string, ConnectorState> = {};
 for (const id of CONNECTOR_IDS) {
   connectorsState[id] = { status: "disconnected", connectedAccount: "", lastSynced: "Not synced", itemCount: 0, dataItems: [] };
@@ -263,6 +266,16 @@ const ENV_TOKENS: Record<string, () => string | undefined> = {
   asana: () => process.env.ASANA_TOKEN || process.env.ASANA_ACCESS_TOKEN || process.env.ASANA_PAT,
   zapier: () => process.env.ZAPIER_API_KEY || process.env.ZAPIER_TOKEN,
   dropbox: () => process.env.DROPBOX_TOKEN || process.env.DROPBOX_ACCESS_TOKEN,
+  stripe: () => process.env.STRIPE_SECRET_KEY || process.env.STRIPE_API_KEY,
+  figma: () => process.env.FIGMA_TOKEN || process.env.FIGMA_ACCESS_TOKEN,
+  jira: () => process.env.JIRA_API_TOKEN || process.env.JIRA_TOKEN,
+  supabase: () => process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+  vercel: () => process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN,
+  airtable: () => process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN,
+  hubspot: () => process.env.HUBSPOT_ACCESS_TOKEN || process.env.HUBSPOT_TOKEN,
+  shopify: () => process.env.SHOPIFY_ACCESS_TOKEN || process.env.SHOPIFY_TOKEN,
+  trello: () => process.env.TRELLO_TOKEN || process.env.TRELLO_API_KEY,
+  postman: () => process.env.POSTMAN_API_KEY || process.env.POSTMAN_KEY,
 };
 const META_IDS = ["instagram", "facebook", "whatsapp"];
 
