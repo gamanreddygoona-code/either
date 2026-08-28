@@ -4,6 +4,9 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 
+// Set Application User Model ID for Windows Taskbar pinning & grouping
+app.setAppUserModelId('com.either.workspace');
+
 // Set isolated user data to avoid Windows cache lock conflicts
 try {
   const customUserData = path.join(os.homedir(), 'AppData', 'Local', 'EitherAIWorkspace');
@@ -77,14 +80,18 @@ function startServerIfNeeded() {
 }
 
 function createWindow() {
+  const icoPath = path.join(__dirname, '..', 'public', 'icons', 'icon.ico');
+  const pngPath = path.join(__dirname, '..', 'public', 'icons', 'icon-512.png');
+  const appIcon = fs.existsSync(icoPath) ? icoPath : pngPath;
+
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 880,
     minWidth: 1024,
     minHeight: 620,
     backgroundColor: '#faf8f5',
-    title: 'Either AI Workspace — Sovereign Multi-Agent Desktop',
-    icon: path.join(__dirname, '..', 'public', 'icons', 'icon-512.png'),
+    title: 'Either AI Workspace',
+    icon: appIcon,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
