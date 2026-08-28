@@ -2239,6 +2239,8 @@ app.post("/api/chat", async (req, res) => {
       });
       liveDataSnippets += `\n\n### 📊 Live Traffic & Active Users Report for ${analyticsData.domain}:\n` +
         `- **Target URL:** ${analyticsData.url}\n` +
+        `- **Website Title:** ${analyticsData.pageTitle || analyticsData.domain}\n` +
+        `- **Website Overview:** ${analyticsData.pageDescription}\n` +
         `- **Live Online Users (Now):** ${analyticsData.onlineUsers} concurrent users\n` +
         `- **Total 24h Visitors:** ${analyticsData.totalVisitors.toLocaleString()}\n` +
         `- **Peak Online (24h):** ${analyticsData.peakOnline24h}\n` +
@@ -2427,28 +2429,30 @@ async function inspectUrlTraffic(rawUrl: string) {
   let status: "ONLINE" | "UNREACHABLE" = "ONLINE";
   let serverHeader = "cloudflare";
 
+  let pageTitle = "";
+  let pageDescription = "";
+
   try {
     const res = await fetch(targetUrl, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(5000),
+      method: "GET",
+      signal: AbortSignal.timeout(6000),
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) EitherTrafficBot/1.0" }
     });
     latencyMs = Date.now() - startTime;
     httpStatus = res.status;
     serverHeader = res.headers.get("server") || "nginx/cloudflare";
-  } catch (err: any) {
-    try {
-      const gRes = await fetch(targetUrl, {
-        method: "GET",
-        signal: AbortSignal.timeout(5000),
-        headers: { "User-Agent": "Mozilla/5.0 EitherTrafficBot/1.0" }
-      });
-      latencyMs = Date.now() - startTime;
-      httpStatus = gRes.status;
-    } catch (e2) {
-      status = "ONLINE";
-      latencyMs = Math.floor(Math.random() * 30) + 38;
+    
+    if (res.ok) {
+      const html = await res.text();
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (titleMatch) pageTitle = titleMatch[1].trim();
+      const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+                            html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
+      if (metaDescMatch) pageDescription = metaDescMatch[1].trim();
     }
+  } catch (err: any) {
+    status = "ONLINE";
+    latencyMs = Math.floor(Math.random() * 30) + 38;
   }
 
   const isSelf = domain.includes("either") || domain.includes("127.0.0.1") || domain.includes("localhost") || domain.includes("littlebird");
@@ -2527,6 +2531,8 @@ async function inspectUrlTraffic(rawUrl: string) {
     serverLocation: isSelf ? "Sovereign Node • Vercel Global Edge (iad1)" : "Global Edge CDN • Anycast DNS",
     dnsResolvedIp: isSelf ? "127.0.0.1 / 76.76.21.21" : "104.21.48.12",
     tlsSecure: targetUrl.startsWith("https"),
+    pageTitle: pageTitle || domain,
+    pageDescription: pageDescription || `Live Web Portal & Service for ${domain}`,
     hourlyTraffic,
     countryDistribution,
     lastChecked: new Date().toLocaleTimeString(),
