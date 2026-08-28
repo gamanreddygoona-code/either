@@ -2765,6 +2765,24 @@ app.post("/api/connectors/:id/disconnect", (req, res) => {
   res.json({ success: true, connector: connectorsState[id] });
 });
 
+/* ================= Direct Windows Desktop App Download Endpoints ================= */
+
+app.get(["/download/windows", "/download/either-ai-setup.bat", "/download", "/download/app"], (_req, res) => {
+  const batPath = path.join(process.cwd(), "public", "Either-AI-Setup.bat");
+  if (fs.existsSync(batPath)) {
+    res.setHeader("Content-Disposition", "attachment; filename=\"Either-AI-Setup.bat\"");
+    res.setHeader("Content-Type", "application/x-bat");
+    return res.sendFile(batPath);
+  }
+  const psPath = path.join(process.cwd(), "public", "install.ps1");
+  if (fs.existsSync(psPath)) {
+    res.setHeader("Content-Disposition", "attachment; filename=\"install-either.ps1\"");
+    res.setHeader("Content-Type", "text/plain");
+    return res.sendFile(psPath);
+  }
+  res.redirect("/?app=1&desktop=1");
+});
+
 /* ================= routines (real Gemini, honest fallback) ================= */
 
 app.post("/api/routines/run", async (req, res) => {

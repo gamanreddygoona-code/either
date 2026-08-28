@@ -62,17 +62,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, onOpenTrad
   },[]);
 
   const handleDownload = () => {
-    // 1-click cloud desktop install via PowerShell
-    copy(ps, 'dl');
+    // 1-Click Windows Setup Download
     const a = document.createElement('a');
-    a.href = '/install.ps1';
-    a.setAttribute('download', 'install-either.ps1');
+    a.href = '/Either-AI-Setup.bat';
+    a.setAttribute('download', 'Either-AI-Setup.bat');
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => {
-      document.getElementById('install')?.scrollIntoView({ behavior: 'smooth' });
-    }, 600);
+    setCopied('dl');
+    setTimeout(() => setCopied(null), 2500);
   };
   const copy = (t: string, k: string) => {
     navigator.clipboard.writeText(t);
