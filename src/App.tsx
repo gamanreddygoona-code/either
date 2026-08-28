@@ -267,6 +267,7 @@ export default function App() {
         toolsUsed: data.toolsUsed,
         sources: data.sources,
         mode: data.mode,
+        analyticsData: data.analyticsData,
       };
 
       setTabs((prev) =>

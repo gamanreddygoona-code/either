@@ -43,6 +43,7 @@ import {
   GitHubIcon, 
   EitherLogo 
 } from "./ConnectorIcons";
+import { TrafficAnalyticsCard } from "./TrafficAnalyticsCard";
 import { AppConnector, ChatMessage, UserProfile } from "../types";
 
 interface MainChatViewProps {
@@ -83,14 +84,19 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
 
   const suggestionSets = [
     [
+      "Inspect live traffic and online users for https://either-ai.vercel.app",
       "Scan my Gmail inbox for today's urgent action items",
       "Check my GitHub repos for open pull requests and review requests",
-      "Search my Notion workspace for recent documentation updates",
     ],
     [
-      "Summarize upcoming Google Calendar meetings and attendee agendas",
-      "Search Google Drive for project specifications and notes",
-      "Check Slack channels for unread priority mentions",
+      "Analyze live visitor traffic & online users for github.com",
+      "List unread messages in Gmail with sender and summary",
+      "Generate BTC/USDT live trading signal with RSI and MACD",
+    ],
+    [
+      "What are the top active models on Hugging Face right now?",
+      "Summarize action items from my last Google Calendar meetings",
+      "Show live server health and system telemetry",
     ],
   ];
 
@@ -286,6 +292,9 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
                           </div>
                         ))}
                       </div>
+                    )}
+                    {!isUser && msg.analyticsData && (
+                      <TrafficAnalyticsCard report={msg.analyticsData} onInspectAnother={(u) => onSendMessage(`Inspect live traffic and online users for ${u}`, selectedModel)} />
                     )}
                     <div className={`p-4 rounded-2xl text-sm leading-relaxed ${isUser ? "bg-stone-900 text-white rounded-tr-none inline-block shadow-2xs text-left" : "bg-white border border-[#ded7c8] text-stone-900 rounded-tl-none shadow-2xs prose prose-stone max-w-none text-xs sm:text-sm whitespace-pre-wrap"}`}>
                       {msg.content}

@@ -119,6 +119,26 @@ export interface AppConnector {
   }[];
 }
 
+export interface UrlTrafficReport {
+  url: string;
+  domain: string;
+  isSelfApp: boolean;
+  status: "ONLINE" | "UNREACHABLE";
+  httpStatus: number;
+  latencyMs: number;
+  totalVisitors: number;
+  onlineUsers: number;
+  peakOnline24h: number;
+  bounceRatePercent: number;
+  avgDurationSec: number;
+  serverLocation: string;
+  dnsResolvedIp: string;
+  tlsSecure: boolean;
+  hourlyTraffic: { hour: string; visitors: number; online: number }[];
+  countryDistribution: { country: string; code: string; percent: number; flag: string }[];
+  lastChecked: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -135,7 +155,8 @@ export interface ChatMessage {
   }[];
   sources?: {
     title: string;
-    uri: string;
+    uri?: string;
+    url?: string;
     type?: string;
   }[];
   attachments?: {
@@ -144,6 +165,7 @@ export interface ChatMessage {
     size: string;
     url?: string;
   }[];
+  analyticsData?: UrlTrafficReport;
 }
 
 export interface ChatTab {
