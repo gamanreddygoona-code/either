@@ -25,6 +25,9 @@ import {
 } from "./server/tradingEngine";
 import { AIFirewall } from "./server/aiFirewall";
 import { crawlAhmia, checkHIBPBreach, fetchCisaKev, fetchThreatFox, probeTorService } from "./server/darkwebCrawler";
+import { ThreatIntelEngine } from "./server/threatIntel";
+import { MCPServer } from "./server/mcpServer";
+import { rateLimiterMiddleware, detectPromptInjection, sanitizeAiOutput, logSecurityEvent, encryptSecret, decryptSecret } from "./server/security";
 
 dotenv.config();
 
@@ -64,6 +67,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+app.use(rateLimiterMiddleware);
 app.use((req, _res, next) => {
   if (req.url === "/api" && req.headers["x-matched-path"]) {
     req.url = req.headers["x-matched-path"] as string;
@@ -2467,12 +2471,34 @@ app.post("/api/chat", async (req, res) => {
     return res.status(400).json({ error: "Missing or invalid prompt" });
   }
 
-  // AI Firewall Pre-execution Prompt Check
+  // 1. Code-Level Security: Prompt Injection Scanner
+  const injection = detectPromptInjection(prompt);
+  if (injection.blocked) {
+    const userEmail = (currentUser.email || authenticatedUserProfile.email || "unknown").toLowerCase();
+    logSecurityEvent({
+      user: userEmail,
+      action: "prompt-injection-detected",
+      verdict: "BLOCKED",
+      details: injection.reason || "Prompt injection pattern match"
+    });
+    return res.status(403).json({
+      error: `Security Violation: ${injection.reason}`,
+      code: "SECURITY_VIOLATION_BLOCKED"
+    });
+  }
+
+  // 2. AI Firewall Pre-execution Prompt Check
   const userEmail = (currentUser.email || authenticatedUserProfile.email || "unknown").toLowerCase();
   const firewall = AIFirewall.getInstance();
   const fwCheck = firewall.checkInput(userEmail, prompt, "chat-prompt");
   if (!fwCheck.allowed) {
     pushLog("error", "AI-Firewall", "BLOCKED", `Prompt blocked: ${fwCheck.reason}`);
+    logSecurityEvent({
+      user: userEmail,
+      action: "firewall-rule-violation",
+      verdict: "BLOCKED",
+      details: fwCheck.reason || "Firewall rule tripped"
+    });
     return res.status(403).json({
       error: `AI Firewall Security Block: ${fwCheck.reason}`,
       code: "FIREWALL_BLOCKED",
@@ -5284,6 +5310,68 @@ app.get("/api/osint/darkweb/status", async (req, res) => {
 app.get("/api/osint/darkweb/audit-ledger", (req, res) => {
   const ledger = AIFirewall.getInstance().getAuditLedger(50);
   res.json({ success: true, count: ledger.length, ledger });
+});
+
+app.post("/api/threat-intel", async (req, res) => {
+  const { type = "email", value, justifiedReason = "Defensive OSINT investigation" } = req.body;
+  if (!value || typeof value !== "string") {
+    return res.status(400).json({ error: "value is required" });
+  }
+
+  const engine = ThreatIntelEngine.getInstance();
+  const userEmail = (currentUser.email || authenticatedUserProfile.email || "unknown").toLowerCase();
+
+  logSecurityEvent({
+    user: userEmail,
+    action: `threat-intel-${type}`,
+    verdict: "ALLOWED",
+    details: `Query: "${value.slice(0, 80)}" | Justification: ${justifiedReason}`
+  });
+
+  try {
+    let result;
+    if (type === "email") {
+      result = await engine.checkEmailBreach(value);
+    } else if (type === "ip" || type === "domain") {
+      result = await engine.checkVirusTotal(value, type);
+    } else if (type === "cve") {
+      result = await engine.searchCisaKev(value);
+    } else if (type === "onion") {
+      result = await engine.searchAhmia(value);
+    } else {
+      return res.status(400).json({ error: `Unsupported type: ${type}. Use email, ip, domain, cve, or onion.` });
+    }
+
+    res.json({ success: true, result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Threat intel lookup failed" });
+  }
+});
+
+/* ================= Model Context Protocol (MCP) Endpoints ================= */
+
+app.get("/api/mcp/tools", (_req, res) => {
+  const mcp = MCPServer.getInstance();
+  res.json({
+    protocolVersion: "2024-11-05",
+    server: { name: "either-ai-workspace-mcp", version: "1.0.0" },
+    tools: mcp.listTools()
+  });
+});
+
+app.post("/api/mcp/call", async (req, res) => {
+  const { name, arguments: args } = req.body;
+  if (!name || typeof name !== "string") {
+    return res.status(400).json({ error: "Tool name is required" });
+  }
+
+  const mcp = MCPServer.getInstance();
+  try {
+    const result = await mcp.callTool(name, args || {});
+    res.json({ success: true, tool: name, result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || "MCP tool execution failed" });
+  }
 });
 
 app.post("/api/osint/darkweb/hibp-check", async (req, res) => {
