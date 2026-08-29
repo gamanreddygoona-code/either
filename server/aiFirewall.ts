@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { CredentialVault } from './credentialVault';
 
 export interface AuditLedgerEntry {
   id: string;
@@ -232,6 +233,9 @@ You are a security tool for defenders, not attackers.
     this.lastHash = hash;
     this.auditLedger.unshift(entry);
     if (this.auditLedger.length > 200) this.auditLedger.pop();
+    try {
+      CredentialVault.getInstance().appendAuditLog(entry);
+    } catch {}
   }
 
   public getAuditLedger(limit: number = 30): AuditLedgerEntry[] {

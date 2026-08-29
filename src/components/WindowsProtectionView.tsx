@@ -43,7 +43,7 @@ export const WindowsProtectionView: React.FC = () => {
           <p className="text-xs text-emerald-800 leading-relaxed mt-1">Powerful guard is shielding your PC. Every file, command, and network hop is checked against 10 strict AI rules. Your .env and project stay local.</p>
           <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
             <div className="bg-white border border-emerald-100 rounded-xl p-2.5 text-center">
-              <div className="text-[10px] font-mono text-emerald-700">HOST</div><div className="font-bold text-stone-900 truncate">{health?.hostname || "DESKTOP-BK4JKUM"}</div><div className="text-[10px] text-stone-500">{health?.platform?.slice(0,22) || "Windows"}</div>
+              <div className="text-[10px] font-mono text-emerald-700">HOST</div><div className="font-bold text-stone-900 truncate">{health?.hostname || "Host Node"}</div><div className="text-[10px] text-stone-500">{health?.platform?.slice(0,22) || "Windows"}</div>
             </div>
             <div className="bg-white border border-emerald-100 rounded-xl p-2.5 text-center">
               <div className="text-[10px] font-mono text-emerald-700">RULES</div><div className="font-bold text-stone-900">{rules.length || 10} Active</div><div className="text-[10px] text-emerald-600">BLOCK • ASK • LOG</div>

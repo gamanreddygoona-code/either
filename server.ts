@@ -2460,9 +2460,22 @@ app.post("/api/meta/token", async (req, res) => {
 /* ================= Intelligent Multi-Tool Live Chat API ================= */
 
 app.post("/api/chat", async (req, res) => {
-  const { prompt, history = [], model = "gemini-2.5-flash-lite", activeConnectors = [], connectedContext = "" } = req.body;
+  const { prompt, history = [], model = "gemini-3.5-flash", activeConnectors = [], connectedContext = "" } = req.body;
   if (!prompt || typeof prompt !== "string") {
     return res.status(400).json({ error: "Missing or invalid prompt" });
+  }
+
+  // AI Firewall Pre-execution Prompt Check
+  const userEmail = (currentUser.email || authenticatedUserProfile.email || "unknown").toLowerCase();
+  const firewall = AIFirewall.getInstance();
+  const fwCheck = firewall.checkInput(userEmail, prompt, "chat-prompt");
+  if (!fwCheck.allowed) {
+    pushLog("error", "AI-Firewall", "BLOCKED", `Prompt blocked: ${fwCheck.reason}`);
+    return res.status(403).json({
+      error: `AI Firewall Security Block: ${fwCheck.reason}`,
+      code: "FIREWALL_BLOCKED",
+      violations: fwCheck.violations
+    });
   }
 
   // Start plan: 100k tokens / month — check before processing
@@ -2725,54 +2738,10 @@ app.post("/api/chat", async (req, res) => {
     liveDataSnippets += `\n\n### 🎨 Generated AI Image Output:\n- **Prompt:** "${cleanPrompt}"\n- **Model:** Flux / SDXL 1024x1024 HDR\n- **Status:** Rendered directly in Main Chat canvas\n`;
   }
 
-  // 12. AI Video Generation Synthesis Engine
-  const isVideoRequest = queryLower.includes("video") || queryLower.includes("movie") || queryLower.includes("film") || queryLower.includes("animate") || queryLower.includes("animation") || queryLower.includes("clip") || queryLower.includes("motion");
-
-  if (isVideoRequest) {
-    let cleanPrompt = prompt
-      .replace(/^(generate|create|produce|render|make|animate)\s+(an?\s+)?(ai\s+)?(video|movie|clip|film|animation)\s+(of|about|depicting)?/i, "")
-      .replace(/^video of\s+/i, "")
-      .trim();
-    if (!cleanPrompt) cleanPrompt = prompt;
-
-    const seed = Math.floor(Math.random() * 999999);
-    const posterUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + " cinematic 8k movie scene frame")}?width=1024&height=576&nologo=true&seed=${seed}&model=flux`;
-    
-    const sampleVideos = [
-      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-    ];
-    const videoUrl = sampleVideos[Math.abs(seed) % sampleVideos.length];
-
-    generatedMedia = {
-      type: "video",
-      url: videoUrl,
-      poster: posterUrl,
-      prompt: cleanPrompt,
-      title: "Either Video Swarm Gen-2",
-      durationSec: 12,
-      fps: 30,
-      resolution: "1080p Cinematic",
-      model: "Either Video Gen-2",
-      generatedAt: new Date().toLocaleTimeString(),
-    };
-
-    toolsUsed.push({
-      name: "Either Video Swarm Gen-2",
-      live: true,
-      status: "completed",
-      details: "1080p 30fps Cinematic Neural Render",
-    });
-
-    sources.push({
-      title: `Either Video Swarm: "${cleanPrompt.slice(0, 40)}..."`,
-      url: videoUrl,
-      type: "media_video",
-    });
-
-    liveDataSnippets += `\n\n### 🎬 Generated AI Video Output:\n- **Prompt:** "${cleanPrompt}"\n- **Model:** Either Video Swarm Gen-2 (1080p 30fps)\n- **Playback:** Interactive HTML5 Video Player embedded in Main Chat\n`;
+  // Video generation request handling (honest, real)
+  const isVideoRequest = queryLower.includes("video") || queryLower.includes("movie") || queryLower.includes("film") || queryLower.includes("animate") || queryLower.includes("animation");
+  if (isVideoRequest && !isImageRequest) {
+    liveDataSnippets += `\n\n### 🎬 Video Synthesis Notice:\n- **Capability:** Generative video pipeline is currently in development (Coming Soon). For visual artwork, generate images using Flux 1024 HDR.\n`;
   }
 
   // Build grounded prompt
@@ -2910,9 +2879,12 @@ Instructions:
       responseText = `### 🧠 Autonomous Workspace Analysis for "${prompt}"\n\nI analyzed your request across active workspace integrations.\n\n* **Identity:** Gaman Sai (\`gamanreddy.goona@gmail.com\`)\n* **Integrations Active:** Gmail, Google Drive, Google Calendar, GitHub (@gamanreddygoona-code), Notion, Slack, Hugging Face, Dedicated Node.\n\nWould you like me to extract real-time data, execute automated browser routines, or synthesize code/documents for this task?`;
     }
 
+    const sanitized = AIFirewall.getInstance().sanitizeOutput(responseText);
+    const finalAnswer = sanitized.sanitized;
+
     return res.json({
       success: true,
-      answer: responseText,
+      answer: finalAnswer,
       toolsUsed: toolsUsed.length > 0 ? toolsUsed : [{ name: "Either AI Autonomous Engine", live: true, status: "completed", details: "Direct Neural Processing" }],
       sources,
       analyticsData,
