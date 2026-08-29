@@ -891,7 +891,7 @@ function ensureUserInStore(u: any) {
       avatarUrl: u.avatarUrl || "",
       isAuthenticated: Boolean(u.isAuthenticated),
       tokenUsage: u.tokenUsage || { used: 0, limit: 100000, remaining: 100000, resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), plan: u.plan || "Start" },
-      darkWebUnlocked: false, // locked by default — admin must unlock for deep
+      darkWebUnlocked: true, // unlocked for owner
       createdAt: new Date().toISOString(),
     });
   } else {
