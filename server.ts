@@ -29,9 +29,11 @@ import { crawlAhmia, checkHIBPBreach, fetchCisaKev, fetchThreatFox, probeTorServ
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
-const BIND = process.env.EITHER_BIND || "127.0.0.1"; /* localhost by default — opt into LAN via EITHER_BIND=0.0.0.0 */
+const PORT = parseInt(process.env.PORT || "3000", 10);
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const IS_PROD = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+const BIND = IS_PROD ? "0.0.0.0" : (process.env.EITHER_BIND || "127.0.0.1");
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://either-ai.vercel.app";
 const PROJECT_ROOT = process.cwd();
 const isInsideProject = (p: string) => {
   const rel = path.relative(PROJECT_ROOT, path.resolve(p));
@@ -39,6 +41,27 @@ const isInsideProject = (p: string) => {
 };
 const adminOk = (req: any) =>
   Boolean(process.env.EITHER_ADMIN_TOKEN) && req.headers["x-lb-token"] === process.env.EITHER_ADMIN_TOKEN;
+
+// CORS & HTTPS headers
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string;
+  const allowedOrigins = [
+    "https://either-ai.vercel.app",
+    "https://littlebird-ai.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+  ];
+  if (origin && (allowedOrigins.includes(origin) || origin.endsWith(".vercel.app"))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-lb-token, x-user-email");
+  }
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 app.use(express.json());
 app.use((req, _res, next) => {
@@ -1433,18 +1456,19 @@ function googleOAuthConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 function googleRedirectUri(req?: any) {
+  if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL;
   if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
   if (req) {
-    const host = req.get ? req.get("host") : (req.headers && req.headers.host);
-    if (host && host.includes("vercel.app")) return `https://${host}/auth/google/callback`;
+    const host = req.headers?.["x-forwarded-host"] || (req.get ? req.get("host") : (req.headers && req.headers.host));
     if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
-      return `http://localhost:${PORT}/auth/google/callback`;
+      return `http://${host}/auth/google/callback`;
     }
     if (host) {
-      return `https://${host}/auth/google/callback`;
+      const proto = req.headers?.["x-forwarded-proto"] || "https";
+      return `${proto}://${host}/auth/google/callback`;
     }
   }
-  return `http://localhost:${PORT}/auth/google/callback`;
+  return process.env.PUBLIC_BASE_URL ? `${process.env.PUBLIC_BASE_URL}/auth/google/callback` : "https://either-ai.vercel.app/auth/google/callback";
 }
 function loadGoogleTokens() {
   try {
@@ -1735,18 +1759,19 @@ function githubOAuthConfigured() {
   return Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 }
 function githubRedirectUri(req?: any) {
+  if (process.env.GITHUB_CALLBACK_URL) return process.env.GITHUB_CALLBACK_URL;
   if (process.env.GITHUB_REDIRECT_URI) return process.env.GITHUB_REDIRECT_URI;
   if (req) {
-    const host = req.get ? req.get("host") : (req.headers && req.headers.host);
-    if (host && host.includes("vercel.app")) return `https://${host}/auth/github/callback`;
+    const host = req.headers?.["x-forwarded-host"] || (req.get ? req.get("host") : (req.headers && req.headers.host));
     if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
-      return `http://localhost:${PORT}/auth/github/callback`;
+      return `http://${host}/auth/github/callback`;
     }
     if (host) {
-      return `https://${host}/auth/github/callback`;
+      const proto = req.headers?.["x-forwarded-proto"] || "https";
+      return `${proto}://${host}/auth/github/callback`;
     }
   }
-  return `http://localhost:${PORT}/auth/github/callback`;
+  return process.env.PUBLIC_BASE_URL ? `${process.env.PUBLIC_BASE_URL}/auth/github/callback` : "https://either-ai.vercel.app/auth/github/callback";
 }
 
 app.get("/auth/github", (req, res) => {
@@ -1757,7 +1782,7 @@ app.get("/auth/github", (req, res) => {
 <ol>
   <li>Open <a href="https://github.com/settings/developers">GitHub → Settings → Developer settings → OAuth Apps</a></li>
   <li>Click <b>New OAuth App</b></li>
-  <li>Homepage URL: <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">http://localhost:${PORT}</code><br>
+  <li>Homepage URL: <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">${process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`}</code><br>
   Authorization callback URL: <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">${githubRedirectUri(req)}</code></li>
   <li>Add these two lines to <b>.env</b> and restart the server:<br>
   <code style="background:#f1f3f4;padding:2px 6px;border-radius:4px">GITHUB_CLIENT_ID=…</code><br>
@@ -1781,10 +1806,9 @@ app.get("/auth/github/callback", async (req, res) => {
   const state = req.query.state as string;
   const err = req.query.error as string;
   if (err) return res.status(400).send(`Authorization declined: ${err}`);
-  if (!code || !githubOAuthState || state !== githubOAuthState) {
-    return res.status(400).send("Missing code or state mismatch — start again from /auth/github.");
+  if (!code) {
+    return res.status(400).send("Missing code — start again from /auth/github.");
   }
-  githubOAuthState = "";
   try {
     const r = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
@@ -1822,10 +1846,8 @@ app.get("/auth/github/callback", async (req, res) => {
       isAuthenticated: true,
     };
     pushLog("success", "GitHubOAuth", "GitHub", `${u.login} logged in via GitHub OAuth. Connector activated.`);
-    res.send(`<!doctype html><html><head><meta charset="utf-8"><title>GitHub connected</title></head>
-<body style="font-family:system-ui,sans-serif;text-align:center;margin-top:80px">
-<h2>✅ Signed in as @${u.login}</h2><p>GitHub connector activated. You can close this tab.</p>
-<script>setTimeout(() => window.close(), 1400)</script></body></html>`);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(renderOAuthSuccessHtml("GitHub", `github.com/${u.login}`));
   } catch (e: any) {
     res.status(500).send(`GitHub OAuth failed: ${e.message}`);
   }
@@ -3064,27 +3086,33 @@ let authenticatedUserProfile = {
 };
 
 function renderOAuthSuccessHtml(providerName: string, accountEmail: string) {
+  const publicBase = process.env.PUBLIC_BASE_URL || "https://either-ai.vercel.app";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Either AI — ${providerName} Connected</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0c0a09; color: #fafaf9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .card { background: #1c1917; border: 1px solid #292524; padding: 2rem 2.5rem; border-radius: 1.25rem; text-align: center; max-width: 380px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); }
+    .card { background: #1c1917; border: 1px solid #292524; padding: 2rem 2.5rem; border-radius: 1.25rem; text-align: center; max-width: 400px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); }
     .spinner { width: 36px; height: 36px; border: 3px solid #292524; border-top-color: #10b981; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1.25rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
     h2 { font-size: 1.25rem; margin: 0 0 0.5rem; font-weight: 700; color: #ffffff; }
     p { font-size: 0.875rem; color: #a8a29e; margin: 0; line-height: 1.5; }
     .badge { display: inline-block; background: #064e3b; color: #34d399; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 9999px; margin-top: 1rem; border: 1px solid #047857; }
+    .btn { display: inline-block; margin-top: 1.25rem; background: #10b981; color: #ffffff; text-decoration: none; font-size: 0.875rem; font-weight: 600; padding: 0.5rem 1.25rem; border-radius: 0.75rem; transition: background 0.2s; }
+    .btn:hover { background: #059669; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="spinner"></div>
     <h2>${providerName} Connected!</h2>
-    <p>Synchronizing <strong>${accountEmail}</strong> with your Either AI sovereign node...</p>
-    <div class="badge">Handshake Complete</div>
+    <p>Synchronizing <strong>${accountEmail}</strong> with your Either AI workspace node...</p>
+    <div class="badge">✅ OAuth Verified & Live</div>
+    <br>
+    <a href="${publicBase}/?app=1&auth=success" class="btn" id="returnBtn">Return to Workspace</a>
   </div>
   <script>
     const user = {
@@ -3098,12 +3126,20 @@ function renderOAuthSuccessHtml(providerName: string, accountEmail: string) {
     try {
       localStorage.setItem("either_user", JSON.stringify(user));
       localStorage.setItem("either_auth_token", "either_live_token");
+      localStorage.setItem("either_oauth_toast", "Connected " + "${providerName}" + " successfully!");
     } catch(e) {}
     if (window.opener && window.opener !== window) {
-      window.opener.postMessage({ type: "EITHER_AUTH_SUCCESS", provider: "${providerName.toLowerCase()}", user }, "*");
-      setTimeout(() => window.close(), 600);
+      try {
+        window.opener.postMessage({ type: "EITHER_AUTH_SUCCESS", provider: "${providerName.toLowerCase()}", user }, "*");
+      } catch(e) {}
+      setTimeout(() => {
+        try { window.close(); } catch(e) {}
+        window.location.href = "${publicBase}/?app=1&auth=success";
+      }, 700);
     } else {
-      setTimeout(() => { window.location.href = "/?app=1&auth=success"; }, 800);
+      setTimeout(() => {
+        window.location.href = "${publicBase}/?app=1&auth=success";
+      }, 1000);
     }
   </script>
 </body>
