@@ -1456,8 +1456,8 @@ function googleOAuthConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 function googleRedirectUri(req?: any) {
-  if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL;
-  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
+  if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL.replace(/^\uFEFF/, "").trim();
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI.replace(/^\uFEFF/, "").trim();
   if (req) {
     const host = req.headers?.["x-forwarded-host"] || (req.get ? req.get("host") : (req.headers && req.headers.host));
     if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
@@ -1468,7 +1468,8 @@ function googleRedirectUri(req?: any) {
       return `${proto}://${host}/auth/google/callback`;
     }
   }
-  return process.env.PUBLIC_BASE_URL ? `${process.env.PUBLIC_BASE_URL}/auth/google/callback` : "https://either-ai.vercel.app/auth/google/callback";
+  const base = (process.env.PUBLIC_BASE_URL || "https://either-ai.vercel.app").replace(/^\uFEFF/, "").trim();
+  return `${base}/auth/google/callback`;
 }
 function loadGoogleTokens() {
   try {
@@ -1759,8 +1760,8 @@ function githubOAuthConfigured() {
   return Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 }
 function githubRedirectUri(req?: any) {
-  if (process.env.GITHUB_CALLBACK_URL) return process.env.GITHUB_CALLBACK_URL;
-  if (process.env.GITHUB_REDIRECT_URI) return process.env.GITHUB_REDIRECT_URI;
+  if (process.env.GITHUB_CALLBACK_URL) return process.env.GITHUB_CALLBACK_URL.replace(/^\uFEFF/, "").trim();
+  if (process.env.GITHUB_REDIRECT_URI) return process.env.GITHUB_REDIRECT_URI.replace(/^\uFEFF/, "").trim();
   if (req) {
     const host = req.headers?.["x-forwarded-host"] || (req.get ? req.get("host") : (req.headers && req.headers.host));
     if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
@@ -1771,7 +1772,8 @@ function githubRedirectUri(req?: any) {
       return `${proto}://${host}/auth/github/callback`;
     }
   }
-  return process.env.PUBLIC_BASE_URL ? `${process.env.PUBLIC_BASE_URL}/auth/github/callback` : "https://either-ai.vercel.app/auth/github/callback";
+  const base = (process.env.PUBLIC_BASE_URL || "https://either-ai.vercel.app").replace(/^\uFEFF/, "").trim();
+  return `${base}/auth/github/callback`;
 }
 
 app.get("/auth/github", (req, res) => {
