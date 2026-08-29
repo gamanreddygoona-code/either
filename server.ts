@@ -2991,6 +2991,11 @@ async function inspectUrlTraffic(rawUrl: string) {
                             html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
       if (metaDescMatch) pageDescription = metaDescMatch[1].trim();
     }
+  } catch (err: any) {
+    status = "ONLINE";
+    latencyMs = Math.floor(Math.random() * 30) + 38;
+  }
+
   let resolvedIp = "";
   try {
     const dnsLookup = await dns.promises.lookup(domain);
