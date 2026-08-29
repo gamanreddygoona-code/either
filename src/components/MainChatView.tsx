@@ -141,9 +141,12 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
     const text = customText || promptText;
     if (!text.trim() || isLoading) return;
     const queryToSend = text.trim();
+    const pendingImage = (window as any).__pendingImage;
+    const attachments = pendingImage ? [pendingImage] : undefined;
+    if (pendingImage) (window as any).__pendingImage = null;
     setPromptText("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    await onSendMessage(queryToSend, selectedModel);
+    await onSendMessage(queryToSend, selectedModel, attachments);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -218,6 +221,63 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
                       <div className="w-7 h-7 rounded-lg bg-violet-50 border border-violet-200 flex items-center justify-center"><Brain className="w-3.5 h-3.5 text-violet-600" /></div>
                       <div className="flex-1"><div className="font-bold text-stone-900 flex items-center space-x-1"><span>Deep Research Swarm</span></div><div className="text-[10px] text-stone-500">Autonomous research across connected sources</div></div>
                     </button>
+
+                    <div className="pt-1 border-t border-[#f0ebd9] mt-1">
+                      <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-500">Add Folders, Files & Photos — AI Sees Images</div>
+                    </div>
+
+                    <label className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg hover:bg-[#f5f1e8] text-left transition-colors cursor-pointer">
+                      <div className="w-7 h-7 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-center"><Folder className="w-3.5 h-3.5 text-stone-600" /></div>
+                      <div className="flex-1"><div className="font-bold text-stone-900">Add Folder</div><div className="text-[10px] text-stone-500">Attach project folder for AI to scan</div></div>
+                      <input type="file" // @ts-ignore — webkitdirectory
+                        // @ts-ignore
+                        webkitdirectory=""
+                        directory=""
+                        multiple
+                        className="hidden"
+                        onChange={(e)=>{
+                          const files = (e.target as HTMLInputElement).files;
+                          if (files && files.length) {
+                            const names = Array.from(files).slice(0,5).map(f=> f.webkitRelativePath || f.name).join(", ");
+                            setPromptText(prev => prev + ` [Folder: ${files.length} files — ${names}] `);
+                            setShowAttachmentMenu(false);
+                          }
+                        }}
+                      />
+                    </label>
+
+                    <label className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg hover:bg-[#f5f1e8] text-left transition-colors cursor-pointer">
+                      <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center"><Paperclip className="w-3.5 h-3.5 text-orange-600" /></div>
+                      <div className="flex-1"><div className="font-bold text-stone-900">Add Files</div><div className="text-[10px] text-stone-500">PDF, docs, sheets, any file</div></div>
+                      <input type="file" multiple className="hidden" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.json" onChange={(e)=>{
+                        const files = (e.target as HTMLInputElement).files;
+                        if (files && files.length) {
+                          const names = Array.from(files).map(f=> f.name).join(", ");
+                          setPromptText(prev => prev + ` [Files: ${names}] `);
+                          setShowAttachmentMenu(false);
+                        }
+                      }} />
+                    </label>
+
+                    <label className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg hover:bg-[#f5f1e8] text-left transition-colors cursor-pointer">
+                      <div className="w-7 h-7 rounded-lg bg-pink-50 border border-pink-200 flex items-center justify-center"><ImageIcon className="w-3.5 h-3.5 text-pink-600" /></div>
+                      <div className="flex-1"><div className="font-bold text-stone-900">Add Photos — AI Sees Images</div><div className="text-[10px] text-stone-500">AI will analyze with Gemini Vision</div></div>
+                      <input type="file" multiple accept="image/*" className="hidden" onChange={async (e)=>{
+                        const files = (e.target as HTMLInputElement).files;
+                        if (!files || !files.length) return;
+                        // Read first image as base64 and store for next send
+                        const file = files[0];
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const base64 = (reader.result as string).split(",")[1];
+                          // Store in window for next onSendMessage
+                          (window as any).__pendingImage = { name: file.name, type: file.type, size: `${(file.size/1024).toFixed(1)}KB`, data: base64, url: reader.result as string };
+                          setPromptText(prev => prev + ` [Photo: ${file.name} — AI will see this image] `);
+                          setShowAttachmentMenu(false);
+                        };
+                        reader.readAsDataURL(file);
+                      }} />
+                    </label>
                   </div>
                 )}
               </div>

@@ -13,6 +13,10 @@ import { AITradingDesk } from "./components/AITradingDesk";
 import { BrowserAgentView } from "./components/BrowserAgentView";
 import { SandboxView } from "./components/SandboxView";
 import { VideoSwarmView } from "./components/VideoSwarmView";
+import { WorkflowCanvas } from "./components/WorkflowCanvas";
+import { DarkWebResearchView } from "./components/DarkWebResearchView";
+import { WindowsProtectionView } from "./components/WindowsProtectionView";
+import { AdminDashboardView } from "./components/AdminDashboardView";
 import { SkillsMemoryDrawer } from "./components/SkillsMemoryDrawer";
 import { AuthModal } from "./components/AuthModal";
 import { LandingPage } from "./components/LandingPage";
@@ -41,7 +45,7 @@ export default function App() {
   });
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
-  const [activeView, setActiveView] = useState<"chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm" | "workflow" | "darkweb" | "protection" | "admin">("chat");
   const [connectors, setConnectors] = useState<AppConnector[]>(INITIAL_CONNECTORS);
   const [meetingNotes, setMeetingNotes] = useState<MeetingNote[]>(INITIAL_MEETING_NOTES);
   const [routines, setRoutines] = useState<Routine[]>(INITIAL_ROUTINES);
@@ -356,6 +360,7 @@ export default function App() {
           model,
           activeConnectors: connectors.filter((c) => c.status === "connected").map((c) => c.id),
           connectedContext,
+          attachments: attachments || [],
         }),
       });
 
@@ -602,6 +607,20 @@ export default function App() {
 
           {activeView === "video-swarm" && (
             <VideoSwarmView />
+          )}
+
+          {activeView === "workflow" && (
+            <WorkflowCanvas onNeedApproval={(node)=> {
+              console.log("HitL approval needed for", node);
+            }} />
+          )}
+
+          {activeView === "darkweb" && (
+            <DarkWebResearchView />
+          )}
+
+          {activeView === "protection" && (
+            <WindowsProtectionView />
           )}
         </main>
       </div>

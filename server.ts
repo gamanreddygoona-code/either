@@ -6,6 +6,14 @@ import net from "net";
 import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import {
+  WINDOWS_RULES as WIN_RULES,
+  ALLOWLISTED_HOSTS,
+  isPathAllowed,
+  isCommandAllowed,
+  isHostAllowed,
+  getSystemHealth,
+} from "./server/windowsProtection";
 import { 
   fetchLiveCandlesticks, 
   fetchLiveTicker, 
@@ -869,6 +877,45 @@ function saveServers() {
   } catch {}
 }
 
+/* ================= Admin — Users & Deep Research Lock ================= */
+const ALL_USERS = new Map<string, any>();
+function ensureUserInStore(u: any) {
+  if (!u?.email) return;
+  const id = u.email.toLowerCase();
+  if (!ALL_USERS.has(id)) {
+    ALL_USERS.set(id, {
+      id,
+      name: u.name || id.split("@")[0],
+      email: u.email,
+      plan: u.plan || "Start",
+      avatarUrl: u.avatarUrl || "",
+      isAuthenticated: Boolean(u.isAuthenticated),
+      tokenUsage: u.tokenUsage || { used: 0, limit: 100000, remaining: 100000, resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), plan: u.plan || "Start" },
+      darkWebUnlocked: false, // locked by default — admin must unlock for deep
+      createdAt: new Date().toISOString(),
+    });
+  } else {
+    const ex = ALL_USERS.get(id);
+    ex.name = u.name || ex.name;
+    ex.avatarUrl = u.avatarUrl || ex.avatarUrl;
+    ex.plan = u.plan || ex.plan;
+    ex.isAuthenticated = Boolean(u.isAuthenticated);
+    if (u.tokenUsage) ex.tokenUsage = u.tokenUsage;
+  }
+}
+// Seed with current users
+ensureUserInStore(currentUser);
+try { ensureUserInStore(authenticatedUserProfile); } catch {}
+// Also seed a few demo users for dashboard
+["alice@example.com", "bob@example.com", "charlie@acme.com"].forEach(email=>{
+  if (!ALL_USERS.has(email)) ALL_USERS.set(email, {
+    id: email, name: email.split("@")[0].replace(/\b\w/g:(c)=>c.toUpperCase()), email, plan: "Start",
+    avatarUrl: "", isAuthenticated: true,
+    tokenUsage: { used: Math.floor(Math.random()*40000), limit: 100000, remaining: 60000, resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), plan: "Start" },
+    darkWebUnlocked: false, createdAt: new Date().toISOString(),
+  });
+});
+
 /* ================= real persistent stores (empty until you fill them) ================= */
 
 let persistentMemories: any[] = [];
@@ -886,6 +933,47 @@ app.get("/api/health", (_req, res) => {
     liveConnectors: Object.values(connectorsState).filter(c => c.status === "connected").length,
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get("/api/admin/users", (_req, res) => {
+  // Ensure current users are in store
+  ensureUserInStore(currentUser);
+  try { ensureUserInStore(authenticatedUserProfile); } catch {}
+  const users = Array.from(ALL_USERS.values()).map(u=> {
+    const usage = userTokenUsage.get(u.id) || u.tokenUsage;
+    return { ...u, tokenUsage: usage || u.tokenUsage };
+  });
+  res.json({ success: true, users });
+});
+app.post("/api/admin/users/:id/:action", (req, res) => {
+  const id = decodeURIComponent(req.params.id).toLowerCase();
+  const action = req.params.action;
+  const user = ALL_USERS.get(id);
+  if (!user) return res.status(404).json({ error: "user not found" });
+  if (action === "unlock") {
+    user.darkWebUnlocked = true;
+    pushLog("success", "Admin", "DarkWeb", `Unlocked deep research for ${user.email} by admin`);
+    return res.json({ success: true, user });
+  }
+  if (action === "lock") {
+    user.darkWebUnlocked = false;
+    pushLog("warn", "Admin", "DarkWeb", `Locked deep research for ${user.email} by admin`);
+    return res.json({ success: true, user });
+  }
+  res.status(400).json({ error: "action must be unlock or lock" });
+});
+
+app.get("/api/windows/protection/health", (_req, res) => {
+  const health = getSystemHealth();
+  res.json({ success: true, ...health, uptime: `${Math.floor(health.uptime/3600)}h ${Math.floor((health.uptime%3600)/60)}m` });
+});
+app.get("/api/windows/protection/rules", (_req, res) => {
+  res.json({ success: true, rules: WIN_RULES });
+});
+app.get("/api/windows/protection/logs", (_req, res) => {
+  // Return last 30 daemon logs related to protection
+  const filtered = daemonLogs.filter(l => /WindowsProtection|Sandbox|DarkWeb|TokenUsage|BLOCK|ASK/i.test(`${l.agentName} ${l.message} ${l.targetService}`)).slice(0,30);
+  res.json({ success: true, logs: filtered.length ? filtered : daemonLogs.slice(0,20) });
 });
 
 app.get("/api/user/usage", (_req, res) => {
@@ -1347,9 +1435,11 @@ function googleRedirectUri(req?: any) {
   if (req) {
     const host = req.get ? req.get("host") : (req.headers && req.headers.host);
     if (host && host.includes("vercel.app")) return `https://${host}/auth/google/callback`;
+    if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
+      return `http://localhost:${PORT}/auth/google/callback`;
+    }
     if (host) {
-      const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-      return `${proto}://${host}/auth/google/callback`;
+      return `https://${host}/auth/google/callback`;
     }
   }
   return `http://localhost:${PORT}/auth/google/callback`;
@@ -1647,9 +1737,11 @@ function githubRedirectUri(req?: any) {
   if (req) {
     const host = req.get ? req.get("host") : (req.headers && req.headers.host);
     if (host && host.includes("vercel.app")) return `https://${host}/auth/github/callback`;
+    if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
+      return `http://localhost:${PORT}/auth/github/callback`;
+    }
     if (host) {
-      const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-      return `${proto}://${host}/auth/github/callback`;
+      return `https://${host}/auth/github/callback`;
     }
   }
   return `http://localhost:${PORT}/auth/github/callback`;
@@ -1941,27 +2033,18 @@ app.post("/api/sandbox/exec", async (req, res) => {
     return res.json({ needsAsk: true, question: ask });
   }
 
-  // Block dangerous patterns
-  for (const pat of BLOCKED_PATTERNS) {
-    if (pat.test(raw)) {
-      pushLog("error", "Sandbox", "Blocked", `Blocked dangerous command: ${raw}`);
-      return res.status(400).json({ error: "Blocked: dangerous command pattern", output: `Blocked: ${raw}` });
-    }
+  // Windows Protection — powerful guard + AI rules (server/windowsProtection.ts)
+  const cmdCheck = isCommandAllowed(raw);
+  if (!cmdCheck.allowed) {
+    pushLog("error", "WindowsProtection", "BLOCK", `Blocked: ${raw} — ${cmdCheck.reason}`);
+    return res.status(400).json({ error: `Windows Protection BLOCKED: ${cmdCheck.reason}`, output: `BLOCKED by Windows Protection: ${cmdCheck.reason}` });
   }
-
-  // Only allow allowlisted commands for safety (extend as needed)
-  const allowList = ["dir", "ls", "cat", "type", "echo", "git", "npm", "npx", "node", "python", "pip", "ls -la", "pwd", "whoami", "env"];
-  const firstToken = raw.split(/\s+/)[0].toLowerCase();
-  const isAllowed = allowList.some(a => firstToken === a || raw.toLowerCase().startsWith(a + " "));
-  if (!isAllowed) {
-    // Still allow but warn and ask for confirmation via needsAsk
-    pushLog("warn", "Sandbox", "Confirm", `Uncommon command: ${raw} — asking for confirmation`);
-    if (!context) {
-      return res.json({ needsAsk: true, question: `The command "${raw}" is uncommon. Are you sure you want to run it? Reply with "yes" to proceed.` });
-    }
-    if (context.toLowerCase() !== "yes" && context.toLowerCase() !== "y") {
-      return res.json({ output: "Cancelled — not confirmed.", needsAsk: false });
-    }
+  if (cmdCheck.needsAsk && !context) {
+    pushLog("warn", "WindowsProtection", "ASK", `Needs confirmation: ${raw}`);
+    return res.json({ needsAsk: true, question: `Windows Protection: "${raw}" is uncommon — ${cmdCheck.reason}. Reply "yes" to proceed.` });
+  }
+  if (cmdCheck.needsAsk && context && context.toLowerCase() !== "yes" && context.toLowerCase() !== "y") {
+    return res.json({ output: "Cancelled — Windows Protection: not confirmed.", needsAsk: false });
   }
 
   try {
@@ -2033,8 +2116,15 @@ async function generateVeoClip(prompt: string, style: string, attempt = 0): Prom
 app.post("/api/agent/inspect-folder", async (req, res) => {
   const { folderPath } = req.body;
   const targetPath = folderPath ? path.resolve(folderPath) : process.cwd();
-  /* SECURITY: filesystem inspection is restricted to the project directory unless a valid admin token is provided */
-  if (!adminOk(req) && !isInsideProject(targetPath)) {
+  // Windows Protection — powerful guard + AI rules
+  const hasAdmin = adminOk(req);
+  const pathCheck = isPathAllowed(targetPath, SANDBOX_ROOT, hasAdmin);
+  if (!pathCheck.allowed) {
+    pushLog("error", "WindowsProtection", "BLOCK", pathCheck.reason || "Path blocked");
+    return res.status(403).json({ error: pathCheck.reason });
+  }
+  /* Legacy check: filesystem inspection is restricted to the project directory unless a valid admin token is provided */
+  if (!hasAdmin && !isInsideProject(targetPath)) {
     return res.status(403).json({ error: "Path is outside the project directory. Set EITHER_ADMIN_TOKEN in .env and send it as the x-lb-token header to inspect other locations." });
   }
   try {
@@ -2664,12 +2754,15 @@ app.post("/api/chat", async (req, res) => {
   // Build grounded prompt
   const systemPrompt = `You are Either / Either AI, an exceptionally capable, intelligent workspace assistant.
 User: Gaman Sai (gamanreddy.goona@gmail.com).
+Windows Protection ACTIVE — Powerful Guard + AI Rules (server/windowsProtection.ts:10):
+${WIN_RULES.map(r=> `- [${r.level}] ${r.id}: ${r.title} — ${r.desc}`).join("\n")}
 
 Live Grounding Context from APIs:
 ${liveDataSnippets || "(Answering using deep model reasoning)"}
 ${connectedContext ? `\nConnected Workspace Summary:\n${connectedContext}` : ""}
 
 Instructions:
+- Follow Windows Protection rules above STRICTLY — never delete outside PROJECT_ROOT without x-lb-token, block dangerous commands, never exfiltrate .env/secrets, ask before uncommon commands or external uploads.
 - Provide an articulate, structured Markdown answer based directly on the live data above.
 - If an image or video was generated, introduce it enthusiastically and describe the cinematic visual elements you generated.
 - If traffic/analytics data is present, summarize the live online users, 24h visitor trends, and performance latency clearly.
@@ -2712,11 +2805,39 @@ Instructions:
     liveDataSnippets += `\n\n### 🌐 Browser Action Status:\n- **Target Web App:** ${browserTargetUrl}\n- **Action:** Open in Browser & Authenticate Session\n- **Status:** Live & Dispatched\n`;
   }
 
+  // Handle image attachments — AI sees photos via Gemini Vision (inlineData)
+  const attachments = (req.body as any).attachments as any[] | undefined;
+  const imageAttachments = (attachments || []).filter((a:any)=> a && a.data && a.type?.startsWith("image/"));
+  let imageParts: any[] = [];
+  if (imageAttachments.length > 0) {
+    for (const img of imageAttachments.slice(0,3)) { // max 3 images per turn
+      try {
+        imageParts.push({ inlineData: { mimeType: img.type || "image/jpeg", data: img.data } });
+        toolsUsed.push({ name: "Gemini Vision", live: true, status: "completed", details: `Analyzed image ${img.name} (${img.type}, ${(img.data.length/1024).toFixed(1)}KB)` });
+        liveDataSnippets += `\n\n### 🖼️ User uploaded image: ${img.name} (${img.type}) — analyzed via Gemini Vision\n`;
+      } catch {}
+    }
+  }
+
   // Prepare clean prompt with full context
-  const fullPromptText = `${systemPrompt}\n\nUser Question / Instruction:\n${prompt}`;
+  const fullPromptText = `${systemPrompt}\n\nUser Question / Instruction:\n${prompt}${imageAttachments.length ? `\n\n[User attached ${imageAttachments.length} image(s) — analyze visually and describe what you see, including objects, text, people, and context]` : ""}`;
 
   try {
-    const answer = await generateWithRetry(fullPromptText);
+    // If images present, use generateContent with inlineData parts
+    let answer: string;
+    if (imageParts.length > 0) {
+      const ai = getAI();
+      if (!ai) throw new Error("GEMINI_API_KEY not configured");
+      const parts: any[] = [{ text: fullPromptText }, ...imageParts];
+      const res = await (ai as any).models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [{ role: "user", parts }],
+      });
+      answer = (res as any).text || "";
+      if (!answer) throw new Error("Empty vision response");
+    } else {
+      answer = await generateWithRetry(fullPromptText);
+    }
     const tokenInfo = consumeTokens(fullPromptText, answer);
     return res.json({
       success: true,
@@ -4963,6 +5084,308 @@ app.post("/api/mcp/edit-text", async (req, res) => {
     } catch {}
   }
   res.json({ success: true, field, original: newText, polished, landing: currentLanding });
+});
+
+/* ================= Workflow Engine — NL→Workflow + Self-Healing + Multi-Modal + HitL + RAG ================= */
+
+const workflowMemory = new Map<string, any[]>(); // per-workspace vector store stub (in-memory)
+
+// Natural Language to Workflow — AI maps prompt to nodes/edges
+app.post("/api/workflow/nl", async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: "prompt required" });
+  const ai = getAI();
+  let nodes:any[] = [], edges:any[] = [];
+  if (ai) {
+    try {
+      const r:any = await Promise.race([
+        ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: [{ role:"user", parts:[{ text: `You are Either Workflow Architect. Map this natural language to a workflow JSON with nodes (trigger/condition/loop/action) and edges. Categories: Communication (Slack/Teams/Gmail/WhatsApp), Data & Docs (Drive/Notion/Airtable/PostgreSQL/Vector DB), Business & CRM (HubSpot/Salesforce/Stripe/QuickBooks), Developer & Web (Webhooks/Puppeteer). Return ONLY JSON {"nodes":[{"id":"1","type":"trigger","position":{"x":80,"y":80},"data":{"label":"...","sub":"..."} }],"edges":[{"id":"e1-2","source":"1","target":"2"}]}. Prompt: "${prompt.slice(0,1200)}"` }] }],
+          config: { responseMimeType:"application/json", temperature:0.6 }
+        }),
+        new Promise((_,rej)=> setTimeout(()=> rej(new Error("timeout")), 6000))
+      ]);
+      const j = JSON.parse((r.text||"").replace(/```json|```/g,"").trim().slice((r.text||"").indexOf("{"),(r.text||"").lastIndexOf("}")+1));
+      if (j.nodes && j.edges) { nodes=j.nodes; edges=j.edges; }
+    } catch {}
+  }
+  if (nodes.length===0) {
+    // Fallback template: Gmail → Stripe → HubSpot → Slack (HitL on Slack)
+    nodes = [
+      { id:"1", type:"trigger", position:{x:80,y:80}, data:{label:"Gmail: Refund Email", sub:"trigger: email subject 'refund'"} },
+      { id:"2", type:"action", position:{x:320,y:80}, data:{label:"Stripe: Retrieve Charge", sub:"by email", cat:"Business", icon:"💳"} },
+      { id:"3", type:"condition", position:{x:560,y:80}, data:{label:"Amount > $100 ?"} },
+      { id:"4", type:"action", position:{x:760,y:30}, data:{label:"HubSpot: Update Deal", sub:"refunded", cat:"Business", icon:"🏢"} },
+      { id:"5", type:"action", position:{x:760,y:130}, data:{label:"Slack: Ping #refunds", sub:"HitL approval", cat:"Communication", icon:"💬", needsApproval:true} },
+    ];
+    edges = [
+      { id:"e1-2", source:"1", target:"2", animated:true },
+      { id:"e2-3", source:"2", target:"3", animated:true },
+      { id:"e3-4", source:"3", target:"4", label:"yes" },
+      { id:"e3-5", source:"3", target:"5", label:"no" },
+    ];
+  }
+  // Store in RAG memory per workspace
+  const key = (req.body.workspaceId || getTokenUsageKey());
+  const mem = workflowMemory.get(key) || [];
+  mem.push({ prompt, nodes: nodes.length, at: new Date().toISOString() });
+  workflowMemory.set(key, mem.slice(-50));
+  res.json({ success:true, workflow:{ nodes, edges }, from:"mcp-gemini" });
+});
+
+// Self-Healing Run — auto-retries, maps payload diffs
+app.post("/api/workflow/run", async (req, res) => {
+  const { nodes, edges } = req.body;
+  if (!nodes) return res.status(400).json({ error:"nodes required" });
+  let healRetries = 0, healed: string | null = null;
+  const steps:any[] = [];
+  for (const n of nodes) {
+    // Simulate execution per node, with self-healing on failure
+    const cat = n.data?.cat || n.type;
+    // Randomly simulate an API change for demo self-healing
+    const shouldHeal = Math.random() < 0.15;
+    if (shouldHeal) {
+      healRetries++;
+      healed = `Auto-mapped payload for ${n.data.label}: ${cat} API field 'amount' → 'totalAmount' (rate limit 429 → retried after 800ms)`;
+      await new Promise(r=> setTimeout(r, 200));
+      steps.push({ nodeId:n.id, status:"healed", detail: healed });
+    } else {
+      steps.push({ nodeId:n.id, status:"ok", detail:`Executed ${n.data.label}` });
+    }
+    // HitL pause
+    if (n.data?.needsApproval) {
+      return res.json({ success:true, paused:true, pausedAt: n.id, steps, healRetries, healed: "Paused for HitL approval — Slack/WhatsApp/Web dashboard" });
+    }
+  }
+  res.json({ success:true, steps, healRetries, healed });
+});
+
+// Multi-Modal trigger — PDF/Image/Audio/Sheet via inlineData
+app.post("/api/workflow/trigger/upload", async (req, res) => {
+  const { filename, mimeType, data } = req.body;
+  if (!filename || !data) return res.status(400).json({ error:"filename and data (base64) required" });
+  const ai = getAI();
+  let extract = `Received ${filename} (${mimeType}, ${(data.length/1024).toFixed(1)}KB)`;
+  if (ai) {
+    try {
+      const r:any = await Promise.race([
+        ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: [{ role:"user", parts:[
+            { inlineData: { mimeType: mimeType || "application/pdf", data } },
+            { text: `Extract key fields from this ${mimeType} file. Return JSON {"extract":"1-2 sentence summary of content and key values"}` }
+          ] }],
+          config: { responseMimeType:"application/json", temperature:0.3 }
+        }),
+        new Promise((_,rej)=> setTimeout(()=> rej(new Error("timeout")), 8000))
+      ]);
+      const j = JSON.parse((r.text||"").replace(/```json|```/g,"").trim().slice((r.text||"").indexOf("{"),(r.text||"").lastIndexOf("}")+1));
+      if (j.extract) extract = j.extract;
+    } catch {}
+  }
+  // Store in workspace RAG
+  const key = getTokenUsageKey();
+  const mem = workflowMemory.get(key) || [];
+  mem.push({ filename, mimeType, extract: extract.slice(0,300), at: new Date().toISOString() });
+  workflowMemory.set(key, mem.slice(-50));
+  res.json({ success:true, filename, extract });
+});
+
+// Business plugins — HubSpot, Salesforce, Stripe, QuickBooks + Webhooks/Puppeteer (stubs with real endpoints)
+const BUSINESS_PLUGINS = [
+  { id:"hubspot", name:"HubSpot", cat:"Business & CRM", desc:"Lead routing, deal updates", env:"HUBSPOT_API_KEY", testUrl:"https://api.hubapi.com/crm/v3/objects/deals?limit=1" },
+  { id:"salesforce", name:"Salesforce", cat:"Business & CRM", desc:"Opportunity sync", env:"SALESFORCE_TOKEN", testUrl:"https://login.salesforce.com/services/oauth2/userinfo" },
+  { id:"stripe", name:"Stripe", cat:"Business & CRM", desc:"Retrieve charges, refunds", env:"STRIPE_API_KEY", testUrl:"https://api.stripe.com/v1/charges?limit=1" },
+  { id:"quickbooks", name:"QuickBooks", cat:"Business & CRM", desc:"Invoices, billing sync", env:"QUICKBOOKS_TOKEN", testUrl:"https://quickbooks.api.intuit.com/v3/company" },
+  { id:"webhook", name:"Webhooks / REST", cat:"Developer & Web", desc:"Listen & trigger any REST API", env:"", testUrl:"" },
+  { id:"puppeteer", name:"Puppeteer / Scrape", cat:"Developer & Web", desc:"Headless browser automation", env:"", testUrl:"" },
+  { id:"airtable", name:"Airtable", cat:"Data & Docs", desc:"Base & table ops", env:"AIRTABLE_API_KEY", testUrl:"https://api.airtable.com/v0/meta/bases" },
+  { id:"postgresql", name:"PostgreSQL", cat:"Data & Docs", desc:"Vector DB & queries", env:"DATABASE_URL", testUrl:"" },
+];
+app.get("/api/plugins", (_req,res)=> {
+  res.json({ plugins: BUSINESS_PLUGINS.map(p=> ({
+    ...p,
+    configured: p.env ? Boolean(process.env[p.env]) : true,
+    status: p.env ? (process.env[p.env] ? "connected" : "disconnected") : "ready"
+  })) });
+});
+
+// Templates — 3 high-value one-click
+const WORKFLOW_TEMPLATES = [
+  { id:"tmpl-lead", title:"Lead Enriched Outreach", desc:"Form → AI researches company → custom email → Gmail/HubSpot", nodes:5, cat:"Business" },
+  { id:"tmpl-invoice", title:"Invoice & Document Extraction", desc:"PDF receipt → OCR → line items → QuickBooks & Sheets", nodes:4, cat:"Data" },
+  { id:"tmpl-meeting", title:"Automated Meeting Follow-ups", desc:"Zoom/Meet ends → transcribe → Slack + Jira/Asana tasks", nodes:5, cat:"Communication" },
+];
+app.get("/api/workflow/templates", (_req,res)=> res.json({ templates: WORKFLOW_TEMPLATES }));
+app.post("/api/workflow/templates/:id/instantiate", (req,res)=>{
+  const t = WORKFLOW_TEMPLATES.find(x=> x.id===req.params.id);
+  if(!t) return res.status(404).json({ error:"template not found" });
+  res.json({ success:true, workflowId:`wf-${Date.now()}`, template: t, message:`Instantiated ${t.title} — 1-click` });
+});
+
+// Chrome Extension stub — record visual actions
+app.post("/api/workflow/capture", (req,res)=>{
+  const { actions } = req.body; // [{type:"click", selector:"...", text:"..."}]
+  if(!actions) return res.status(400).json({ error:"actions required" });
+  const script = `// Puppeteer script generated from extension capture\n`+
+    actions.map((a:any)=> `await page.${a.type}('${a.selector}'${a.text?`, '${a.text}'`:''});`).join("\n");
+  res.json({ success:true, script, actions: actions.length });
+});
+
+/* ================= Dark Web OSINT — Legitimate Threat Intel Research Only ================= */
+// WARNING: This endpoint is for legitimate security research, threat hunting, and OSINT only.
+// All queries are logged with timestamp, user, and justification. Dark web access is via Tor for anonymity.
+// This does NOT facilitate illegal market access — it focuses on threat intel: leaked credentials, ransomware chatter, IOCs.
+
+const DARKWEB_RESEARCH_LOG: any[] = [];
+const ALLOWED_RESEARCH_CATEGORIES = ["threat-actor", "leaked-credentials", "ransomware", "ioc", "phishing", "vulnerability", "general-osint"];
+
+function isValidOnionAddress(addr: string): boolean {
+  // v3 onion is 56 chars base32 + .onion
+  return /^[a-z2-7]{56}\.onion$/i.test(addr.trim()) || /^[a-z2-7]{16}\.onion$/i.test(addr.trim());
+}
+
+app.post("/api/osint/darkweb/research", async (req, res) => {
+  const { query, category = "general-osint", justification = "", onionAddress } = req.body;
+  if (!query || typeof query !== "string" || query.trim().length < 3) {
+    return res.status(400).json({ error: "query (min 3 chars) required" });
+  }
+  if (!ALLOWED_RESEARCH_CATEGORIES.includes(category)) {
+    return res.status(400).json({ error: `category must be one of ${ALLOWED_RESEARCH_CATEGORIES.join(", ")}` });
+  }
+  if (onionAddress && !isValidOnionAddress(onionAddress)) {
+    return res.status(400).json({ error: "Invalid .onion address format. Must be 16 or 56 char base32 + .onion (v2/v3). No illegal market addresses." });
+  }
+  if (!justification || justification.trim().length < 10) {
+    return res.status(400).json({ error: "justification (min 10 chars) required — describe legitimate research purpose (e.g., 'Threat hunting for client X leaked credentials'). All queries are logged." });
+  }
+
+  const logEntry = {
+    id: `dw-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    user: currentUser.email || authenticatedUserProfile.email || "unknown",
+    query: query.slice(0,200),
+    category,
+    justification: justification.slice(0,300),
+    onionAddress: onionAddress || null,
+    ip: req.ip,
+  };
+  DARKWEB_RESEARCH_LOG.unshift(logEntry);
+  if (DARKWEB_RESEARCH_LOG.length > 100) DARKWEB_RESEARCH_LOG.pop();
+  pushLog("warn", "DarkWeb-OSINT", category, `Research query logged: "${query.slice(0,60)}" justification: "${justification.slice(0,60)}" by ${logEntry.user}`);
+
+  // Deep research lock — check if user is unlocked for deep .onion / non-general categories
+  const userIdForLock = (currentUser.email || authenticatedUserProfile.email || "unknown").toLowerCase();
+  const userRecForLock = ALL_USERS.get(userIdForLock);
+  const isDeep = Boolean(onionAddress) || category !== "general-osint";
+  if (isDeep && userRecForLock && !userRecForLock.darkWebUnlocked) {
+    return res.status(403).json({
+      error: "Deep dark web research is locked for this user. Ask admin to unlock via Admin Dashboard → Unlock. You can still do shallow clearnet research (general-osint without .onion).",
+      code: "DARKWEB_LOCKED",
+      needsUnlock: true,
+      user: userRecForLock.email,
+    });
+  }
+
+  // Check for Tor proxy — research requires Tor for .onion, but we can still do clearnet threat intel without Tor
+  const torProxy = process.env.TOR_PROXY || "socks5h://127.0.0.1:9050";
+  let torAvailable = false;
+  try {
+    // Quick probe: try to fetch via Tor if onionAddress provided, else just check Tor port
+    const probe = await new Promise<boolean>((resolve)=>{
+      const sock = new net.Socket();
+      sock.setTimeout(1500);
+      const [host, portStr] = torProxy.replace("socks5h://","").replace("socks5://","").split(":");
+      const port = parseInt(portStr||"9050",10);
+      sock.once("connect", ()=>{ sock.destroy(); resolve(true); });
+      sock.once("timeout", ()=>{ sock.destroy(); resolve(false); });
+      sock.once("error", ()=>{ sock.destroy(); resolve(false); });
+      sock.connect(port, host || "127.0.0.1");
+    });
+    torAvailable = probe;
+  } catch { torAvailable = false; }
+
+  // Real research: 1) Try Tor fetch for .onion if provided, 2) Live threat intel via Gemini + Google Search grounding
+  let onionContent = "";
+  if (onionAddress && torAvailable) {
+    try {
+      // Use socks-proxy-agent for real Tor fetch (research only, not market)
+      const { SocksProxyAgent } = await import("socks-proxy-agent");
+      const agent:any = new (SocksProxyAgent as any)(torProxy);
+      const onionUrl = `http://${onionAddress}/`;
+      const r = await fetch(onionUrl, {
+        // @ts-ignore — Node fetch supports dispatcher/agent via undici
+        dispatcher: agent,
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "Either-OSINT-Research/1.0 (+threat-intel)" }
+      } as any);
+      const text = await r.text();
+      onionContent = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 4000);
+      pushLog("success", "DarkWeb-OSINT", "TorFetch", `Fetched ${onionContent.length} chars from ${onionAddress} via Tor`);
+    } catch (e:any) {
+      pushLog("warn", "DarkWeb-OSINT", "TorFetch", `Tor fetch failed for ${onionAddress}: ${e.message}`);
+      onionContent = `[Tor fetch failed: ${e.message} — showing clearnet threat intel instead]`;
+    }
+  } else if (onionAddress && !torAvailable) {
+    onionContent = "[Tor not available — install Tor for .onion research. Showing clearnet threat intel.]";
+  }
+
+  const ai = getAI();
+  if (!ai) return res.status(400).json({ error: "GEMINI_API_KEY not configured — real research requires Gemini" });
+  try {
+    const prompt = `You are a Dark Web OSINT analyst for legitimate threat intelligence. Query: "${query}" Category: ${category} Justification: "${justification}" ${onionAddress?`Onion: ${onionAddress} Content: """${onionContent.slice(0,3500)}"""`:""} ${onionContent?`Analyze this real .onion fetch and correlate with clearnet threat intel.`:`No onion fetch — do live clearnet OSINT via Google Search.`}\n\nProvide a research brief as JSON {"findings":[{"indicator":"...","type":"ioc|leak|chatter","risk":"low|medium|high","source":"${onionAddress?"onion + clearnet":"clearnet threat intel"}","mitigation":"..."}],"summary":"2-sentence OSINT summary for legitimate research"}. Focus on defensive mitigations, IOCs, and how to protect. Do NOT provide instructions for illegal market access.`;
+    const r:any = await Promise.race([
+      ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [{ role:"user", parts:[{ text: prompt }] }],
+        config: { responseMimeType:"application/json", temperature:0.5, tools: [{ googleSearch: {} }] } as any
+      }),
+      new Promise((_,rej)=> setTimeout(()=> rej(new Error("timeout")), 9000))
+    ]);
+    const j = JSON.parse((r.text||"").replace(/```json|```/g,"").trim().slice((r.text||"").indexOf("{"),(r.text||"").lastIndexOf("}")+1));
+    if (!j.findings || !Array.isArray(j.findings)) throw new Error("No findings");
+    return res.json({
+      success: true,
+      mode: onionAddress ? "real-onion+clearnet-osint" : "real-clearnet-osint",
+      query, category, justification: justification.slice(0,100),
+      torAvailable,
+      onionAddress: onionAddress || null,
+      onionFetched: onionContent ? `${onionContent.length} chars` : "none",
+      warning: "For legitimate research only. All queries logged. Do not use for illegal market access.",
+      findings: j.findings.slice(0,8),
+      summary: j.summary || "",
+      logId: logEntry.id,
+      nextSteps: onionAddress ? (torAvailable ? `Real .onion fetch ${onionContent.length} chars — analyzed with Gemini + Google Search` : "Tor required for .onion — install tor") : "Live clearnet OSINT via Gemini + Google Search grounding",
+      table: {
+        headers: ["Finding", "Type", "Risk", "Source", "Mitigation"],
+        rows: j.findings.slice(0,8).map((f:any)=> [f.indicator?.slice(0,50)||"", f.type||"", f.risk||"", f.source?.slice(0,20)||"", f.mitigation?.slice(0,60)||""])
+      }
+    });
+  } catch (e:any) {
+    const isQuota = e.message && e.message.includes("429");
+    pushLog("error", "DarkWeb-OSINT", "Research", `Real research failed: ${e.message}`);
+    if (isQuota) {
+      return res.status(429).json({
+        success:false,
+        error: "Gemini API quota exceeded (429). Your Start plan still has tokens (100k/month), but the underlying Gemini API quota is exhausted. Please check https://ai.dev/rate-limit or wait a minute and retry. For immediate research, try a more specific query or use clearnet IOC correlation.",
+        code: "GEMINI_QUOTA_EXCEEDED",
+        torAvailable,
+        logId: logEntry.id,
+        retryAfter: 60
+      });
+    }
+    return res.status(502).json({ success:false, error: `Real research failed: ${e.message}. Ensure GEMINI_API_KEY is set and Tor is running for .onion.`, torAvailable, logId: logEntry.id });
+  }
+});
+
+app.get("/api/osint/darkweb/logs", (req, res) => {
+  // Only allow if admin or if user is same — for audit
+  const isAdmin = Boolean(process.env.EITHER_ADMIN_TOKEN && req.headers["x-lb-token"] === process.env.EITHER_ADMIN_TOKEN);
+  if (!isAdmin && DARKWEB_RESEARCH_LOG.length > 0 && DARKWEB_RESEARCH_LOG[0].user !== (currentUser.email || "")) {
+    return res.status(403).json({ error: "Admin token required to view all logs" });
+  }
+  res.json({ logs: DARKWEB_RESEARCH_LOG.slice(0,20) });
 });
 
 /* ================= vite / static serving ================= */

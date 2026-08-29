@@ -95,7 +95,7 @@ export interface SimulationMessage {
 export interface AppConnector {
   id: string;
   name: string;
-  category: "storage" | "calendar" | "productivity" | "communication" | "automation" | "code" | "email";
+  category: "storage" | "calendar" | "productivity" | "communication" | "automation" | "code" | "email" | "finance";
   icon: string;
   brandColor: string;
   description: string;
