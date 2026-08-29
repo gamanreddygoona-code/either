@@ -909,7 +909,7 @@ try { ensureUserInStore(authenticatedUserProfile); } catch {}
 // Also seed a few demo users for dashboard
 ["alice@example.com", "bob@example.com", "charlie@acme.com"].forEach(email=>{
   if (!ALL_USERS.has(email)) ALL_USERS.set(email, {
-    id: email, name: email.split("@")[0].replace(/\b\w/g:(c)=>c.toUpperCase()), email, plan: "Start",
+    id: email, name: email.split("@")[0].replace(/\b\w/g, (c)=>c.toUpperCase()), email, plan: "Start",
     avatarUrl: "", isAuthenticated: true,
     tokenUsage: { used: Math.floor(Math.random()*40000), limit: 100000, remaining: 60000, resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), plan: "Start" },
     darkWebUnlocked: false, createdAt: new Date().toISOString(),
