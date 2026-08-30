@@ -183,13 +183,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onNewChat();
               onSelectView("chat");
             }}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "chat"
                 ? "bg-[#eee8dc] text-stone-900 font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <MessageSquare className="w-4 h-4 text-stone-600 shrink-0" />
             <span>New Chat</span>
           </button>
 
@@ -197,13 +196,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             id="sidebar-search-btn"
             onClick={() => onSelectView("search")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "search"
                 ? "bg-[#eee8dc] text-stone-900 font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Search className="w-4 h-4 text-stone-600 shrink-0" />
             <span>Search</span>
           </button>
 
@@ -211,13 +209,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             id="sidebar-meeting-notes-btn"
             onClick={() => onSelectView("meeting-notes")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "meeting-notes"
                 ? "bg-[#eee8dc] text-stone-900 font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Calendar className="w-4 h-4 text-stone-600 shrink-0" />
             <span>Meeting Notes</span>
           </button>
 
@@ -225,13 +222,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             id="sidebar-routines-btn"
             onClick={() => onSelectView("routines")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "routines"
                 ? "bg-[#eee8dc] text-stone-900 font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <RotateCw className="w-4 h-4 text-stone-600 shrink-0" />
             <span>Routines</span>
           </button>
 
@@ -239,102 +235,84 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             id="sidebar-browser-agent-btn"
             onClick={() => onSelectView("browser-agent")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "browser-agent"
                 ? "bg-[#eee8dc] text-stone-900 font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Globe className={`w-4 h-4 shrink-0 ${activeView === "browser-agent" ? "text-stone-900" : "text-cyan-600"}`} />
-            <div className="flex items-center justify-between w-full">
-              <span>Browser AI Agent</span>
-              <span className="text-[9px] bg-cyan-100 text-cyan-800 font-bold px-1.5 py-0.2 rounded font-mono">LIVE</span>
-            </div>
+            <span className="truncate">Browser AI Agent</span>
+            <span className="text-[9px] bg-cyan-100 text-cyan-800 font-bold px-1.5 py-0.5 rounded font-mono shrink-0 ml-2">LIVE</span>
           </button>
 
           {/* Sandbox — Run Commands + Ask */}
           <button
             id="sidebar-sandbox-btn"
             onClick={() => onSelectView("sandbox")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "sandbox"
                 ? "bg-stone-900 text-white font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Terminal className={`w-4 h-4 shrink-0 ${activeView === "sandbox" ? "text-white" : "text-stone-600"}`} />
-            <div className="flex items-center justify-between w-full">
-              <span>Sandbox</span>
-              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-mono ${activeView==="sandbox"?"bg-white text-stone-900":"bg-stone-900 text-white"}`}>RUN</span>
-            </div>
+            <span className="truncate">Sandbox</span>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono shrink-0 ml-2 ${activeView==="sandbox"?"bg-white text-stone-900":"bg-stone-900 text-white"}`}>RUN</span>
           </button>
 
           {/* Movie Swarm — Veo 3 4 clips per scene */}
           <button
             id="sidebar-video-swarm-btn"
             onClick={() => onSelectView("video-swarm")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "video-swarm"
                 ? "bg-violet-600 text-white font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Film className={`w-4 h-4 shrink-0 ${activeView==="video-swarm"?"text-white":"text-violet-600"}`} />
-            <div className="flex items-center justify-between w-full">
-              <span>Movie Swarm</span>
-              <span className="text-[9px] bg-violet-100 text-violet-800 font-bold px-1.5 py-0.2 rounded font-mono">Veo 3 • 4×</span>
-            </div>
+            <span className="truncate">Movie Swarm</span>
+            <span className="text-[9px] bg-violet-100 text-violet-800 font-bold px-1.5 py-0.5 rounded font-mono shrink-0 ml-2">Veo 3 • 4×</span>
           </button>
 
           {/* Workflow Builder — Drag & Drop Canvas */}
           <button
             id="sidebar-workflow-btn"
             onClick={() => onSelectView("workflow")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "workflow"
                 ? "bg-stone-900 text-white font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <Layers className={`w-4 h-4 shrink-0 ${activeView==="workflow"?"text-white":"text-stone-600"}`} />
-            <div className="flex items-center justify-between w-full">
-              <span>Workflow Builder</span>
-              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded font-mono">NEW • Canvas</span>
-            </div>
+            <span className="truncate">Workflow Builder</span>
+            <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded font-mono shrink-0 ml-2">Canvas</span>
           </button>
 
           {/* Dark Web OSINT — Threat Intel Only */}
           <button
             id="sidebar-darkweb-btn"
             onClick={() => onSelectView("darkweb")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "darkweb"
                 ? "bg-stone-900 text-white font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <ShieldCheck className={`w-4 h-4 shrink-0 ${activeView==="darkweb"?"text-white":"text-amber-600"}`} />
-            <div className="flex items-center justify-between w-full">
-              <span>Dark Web OSINT</span>
-              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded font-mono">Tor • Logged</span>
-            </div>
+            <span className="truncate">Dark Web OSINT</span>
+            <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded font-mono shrink-0 ml-2">Tor • Logged</span>
           </button>
 
           {/* Windows Protection — Powerful Shield */}
           <button
             id="sidebar-protection-btn"
             onClick={() => onSelectView("protection")}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeView === "protection"
-                ? "bg-emerald-600 text-white font-semibold shadow-xs"
+                ? "bg-emerald-700 text-white font-semibold shadow-xs"
                 : "text-stone-700 hover:text-stone-900 hover:bg-[#f3ede1]"
             }`}
           >
-            <ShieldCheck className={`w-4 h-4 shrink-0 ${activeView==="protection"?"text-white":"text-emerald-600"}`} />
-            <div className="flex items-center justify-between w-full">
-              <span>Windows Protection</span>
-              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded font-mono">ACTIVE • 10 rules</span>
-            </div>
+            <span className="truncate">Windows Protection</span>
+            <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded font-mono shrink-0 ml-2">ACTIVE • 10</span>
           </button>
         </nav>
 
