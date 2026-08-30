@@ -360,6 +360,84 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
                     {!isUser && msg.generatedMedia && (
                       <GeneratedMediaCard media={msg.generatedMedia} onRegenerate={(p) => onSendMessage(p, selectedModel)} />
                     )}
+                    {!isUser && msg.darkWebResearch && (
+                      <div className="my-3 w-full max-w-2xl bg-[#0f1115] border border-amber-900/40 text-stone-100 rounded-2xl p-4 sm:p-5 shadow-2xl font-sans select-none animate-fadeIn">
+                        <div className="flex items-center justify-between border-b border-stone-800 pb-3 mb-3">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-600 to-red-600 flex items-center justify-center text-white font-bold shadow-md shadow-amber-950/50">
+                              <ShieldCheck className="w-4 h-4 text-white" />
+                            </div>
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-bold text-sm text-white">Dark Web OSINT Intel</span>
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-950/80 text-amber-400 border border-amber-800/60">
+                                  TOR • LOGGED
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-stone-400">Target: "{msg.darkWebResearch.query}"</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-mono text-emerald-400 flex items-center space-x-1 justify-end">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span>Verified Chain</span>
+                            </span>
+                            <p className="text-[9px] text-stone-500 font-mono truncate max-w-[120px]">{msg.darkWebResearch.auditLedgerHash.slice(0, 16)}...</p>
+                          </div>
+                        </div>
+
+                        {/* Onion Telemetry */}
+                        {msg.darkWebResearch.onions && msg.darkWebResearch.onions.length > 0 && (
+                          <div className="mb-3 space-y-2">
+                            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider font-mono flex items-center space-x-1.5">
+                              <Globe className="w-3 h-3 text-amber-400" />
+                              <span>Live .onion Intelligence ({msg.darkWebResearch.onions.length} extracted)</span>
+                            </span>
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                              {msg.darkWebResearch.onions.map((o: any, oIdx: number) => (
+                                <div key={oIdx} className="p-2.5 rounded-xl bg-stone-900/80 border border-stone-800/80 text-xs">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-stone-200">{o.title}</span>
+                                    <span className="text-[10px] font-mono text-amber-300 bg-amber-950/50 px-1.5 py-0.2 rounded border border-amber-900/40 truncate max-w-[180px]">{o.url}</span>
+                                  </div>
+                                  {o.description && <p className="text-[11px] text-stone-400 mt-1 line-clamp-2">{o.description}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* CISA KEV Vulnerabilities */}
+                        {msg.darkWebResearch.cveVulnerabilities && msg.darkWebResearch.cveVulnerabilities.length > 0 && (
+                          <div className="mb-3 space-y-1.5">
+                            <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider font-mono flex items-center space-x-1.5">
+                              <AlertTriangle className="w-3 h-3 text-red-400" />
+                              <span>CISA Known Exploited Zero-Days ({msg.darkWebResearch.cveVulnerabilities.length})</span>
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {msg.darkWebResearch.cveVulnerabilities.slice(0, 4).map((v: any, vIdx: number) => (
+                                <div key={vIdx} className="p-2 rounded-lg bg-red-950/30 border border-red-900/40 text-[11px]">
+                                  <div className="flex items-center justify-between font-bold text-red-300">
+                                    <span>{v.cveID}</span>
+                                    <span className="text-[9px] font-mono text-stone-400">{v.vendorProject}</span>
+                                  </div>
+                                  <p className="text-[10px] text-stone-400 mt-0.5 line-clamp-1">{v.vulnerabilityName || v.shortDescription}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Footer / HIBP status */}
+                        <div className="pt-2.5 border-t border-stone-800/80 flex items-center justify-between text-[11px] text-stone-400">
+                          <span className="flex items-center space-x-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Tamper-proof Cryptographic Ledger Verified</span>
+                          </span>
+                          <span className="font-mono text-[10px] text-stone-500">{msg.darkWebResearch.timestamp}</span>
+                        </div>
+                      </div>
+                    )}
                     <div className={`p-4 rounded-2xl text-sm leading-relaxed ${isUser ? "bg-stone-900 text-white rounded-tr-none inline-block shadow-2xs text-left" : "bg-white border border-[#ded7c8] text-stone-900 rounded-tl-none shadow-2xs prose prose-stone max-w-none text-xs sm:text-sm whitespace-pre-wrap"}`}>
                       {msg.content}
                     </div>

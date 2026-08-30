@@ -1,0 +1,53 @@
+[
+  {
+    "id": "tx_10829182",
+    "invoiceId": "INV-2026-081",
+    "customerName": "Gaman Impex Exports LLC",
+    "customerEmail": "gamanreddy.goona@gmail.com",
+    "amount": 4500,
+    "currency": "USD",
+    "status": "COMPLETED",
+    "gateway": "Stripe",
+    "method": "Bank Wire",
+    "description": "Bulk Spice Export Batch #S17-Teja Contract",
+    "payoutDate": "8/28/2026",
+    "fee": 45,
+    "net": 4455,
+    "timestamp": "2026-08-28T16:56:27.828Z",
+    "txHash": "ch_3PfK91LKJ8291029102"
+  },
+  {
+    "id": "tx_10829183",
+    "invoiceId": "INV-2026-082",
+    "customerName": "AeroTech Intelligence Corp",
+    "customerEmail": "billing@aerotech.io",
+    "amount": 1200,
+    "currency": "USD",
+    "status": "COMPLETED",
+    "gateway": "Stripe",
+    "method": "Card",
+    "description": "Either AI Sovereign Enterprise Agent License (Annual)",
+    "payoutDate": "8/29/2026",
+    "fee": 34.8,
+    "net": 1165.2,
+    "timestamp": "2026-08-29T04:56:27.828Z",
+    "txHash": "ch_3PfM49081230192301"
+  },
+  {
+    "id": "tx_10829184",
+    "invoiceId": "INV-2026-083",
+    "customerName": "Quant Matrix Trading Fund",
+    "customerEmail": "ops@quantmatrix.finance",
+    "amount": 2500,
+    "currency": "USDT",
+    "status": "COMPLETED",
+    "gateway": "Crypto",
+    "method": "Crypto On-Chain",
+    "description": "AI Trading Desk High-Frequency API Node Access",
+    "payoutDate": "8/29/2026",
+    "fee": 1,
+    "net": 2499,
+    "timestamp": "2026-08-29T12:56:27.828Z",
+    "txHash": "0x8f1920acbf8201948192a01948192a01948192bce"
+  }
+]

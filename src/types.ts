@@ -139,8 +139,19 @@ export interface UrlTrafficReport {
   lastChecked: string;
 }
 
+export interface MovieClip {
+  sceneNumber: number;
+  title: string;
+  url: string;
+  prompt: string;
+  cameraMovement: string;
+  durationSec: number;
+  audioPrompt?: string;
+  visualStyle?: string;
+}
+
 export interface GeneratedMediaPayload {
-  type: "image" | "video";
+  type: "image" | "video" | "movie";
   url: string;
   poster?: string;
   prompt: string;
@@ -152,6 +163,19 @@ export interface GeneratedMediaPayload {
   height?: number;
   model?: string;
   generatedAt?: string;
+  clips?: MovieClip[];
+}
+
+export interface DarkWebResearchPayload {
+  query: string;
+  category?: string;
+  onions: { title: string; url: string; description: string }[];
+  cveVulnerabilities: any[];
+  threatFoxIocs: any[];
+  hibpBreached: boolean;
+  hibpDetails?: string;
+  auditLedgerHash: string;
+  timestamp: string;
 }
 
 export interface ChatMessage {
@@ -182,6 +206,7 @@ export interface ChatMessage {
   }[];
   analyticsData?: UrlTrafficReport;
   generatedMedia?: GeneratedMediaPayload;
+  darkWebResearch?: DarkWebResearchPayload;
 }
 
 export interface ChatTab {
