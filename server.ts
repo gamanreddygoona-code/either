@@ -2751,95 +2751,271 @@ app.post("/api/chat", async (req, res) => {
     }
   }
 
-  // 11. AI Image & Multi-Clip Movie Generator
+  // 11. Multi-Step Screenplay & Veo 3 Multi-Agent Movie Production Engine
   let generatedMedia: any = null;
-  const isMovieRequest = queryLower.includes("movie") || queryLower.includes("clips") || queryLower.includes("film") || queryLower.includes("make me movie") || queryLower.includes("create movie") || queryLower.includes("video swarm");
+  let movieProduction: any = null;
+  const isMovieRequest = queryLower.includes("movie") || queryLower.includes("clips") || queryLower.includes("film") || queryLower.includes("zombie") || queryLower.includes("make me movie") || queryLower.includes("create movie") || queryLower.includes("video swarm");
   const isImageRequest = !isMovieRequest && (queryLower.includes("image") || queryLower.includes("photo") || queryLower.includes("picture") || queryLower.includes("draw") || queryLower.includes("wallpaper") || queryLower.includes("artwork") || queryLower.includes("generate an image") || queryLower.includes("create image") || queryLower.includes("generate image") || queryLower.includes("sketch") || queryLower.includes("video"));
 
   if (isMovieRequest) {
     let cleanPrompt = prompt
       .replace(/^(generate|create|produce|make me|render|direct)\s+(an?\s+)?(movie|film|video clips?|movie clips?|cinematic clips?)\s+(of|about|depicting)?/i, "")
       .trim();
-    if (!cleanPrompt) cleanPrompt = "A cinematic cyberpunk neo-noir odyssey with atmospheric neon lighting and deep narrative tension";
+    if (!cleanPrompt) cleanPrompt = "A cinematic zombie apocalypse survival thriller across a desolate metropolis at dawn";
+
+    const isZombie = queryLower.includes("zombie") || queryLower.includes("undead") || queryLower.includes("apocalypse");
+    const isCyberpunk = queryLower.includes("cyberpunk") || queryLower.includes("neon") || queryLower.includes("future");
+    const isApproval = queryLower.includes("approve") || queryLower.includes("approved") || queryLower.includes("synthesize now") || queryLower.includes("start production");
+
+    const genre = isZombie ? "Post-Apocalyptic Zombie Survival Thriller" : isCyberpunk ? "Cyberpunk Neo-Noir Odyssey" : "Cinematic Narrative Odyssey";
+    const title = isZombie ? "OUTBREAK: DEAD DAWN" : isCyberpunk ? "SYNAPSE: SHADOW OF NEO-TOKYO" : `CHRONICLES: ${cleanPrompt.slice(0, 24).toUpperCase()}`;
+    const logline = isZombie 
+      ? "When an unknown pathogen collapses the city grid, a lone survivor must navigate subterranean subway ruins and relentless infected hordes to reach the extraction beacon before sunrise."
+      : `An intense cinematic odyssey capturing the high-stakes journey of ${cleanPrompt}.`;
 
     const baseSeed = Math.floor(Math.random() * 900000) + 100000;
-    const movieClips = [
+
+    const scenesData = [
       {
         sceneNumber: 1,
-        title: "Opening Establishing Shot",
-        url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", wide angle cinematic establishing drone shot, 8k anamorphic lens, atmospheric lighting")}?width=1024&height=576&nologo=true&seed=${baseSeed + 1}&enhance=true&model=flux`,
-        prompt: `Scene 1: Wide cinematic establishing drone sweep over ${cleanPrompt}`,
-        cameraMovement: "Wide Drone Crane Down",
+        title: isZombie ? "The Desolate Outbreak" : "Opening Incursion",
+        slug: isZombie ? "EXT. ABANDONED HIGHWAY - DUSK" : "EXT. SPRAWLING METROPOLIS - DUSK",
+        narrativeDescription: isZombie 
+          ? "Smoke rises from abandoned vehicles as silence hangs heavy over the shattered skyline. A lone figure scans the road through broken binoculars."
+          : `Wide establishing perspective revealing the vast atmospheric scope of ${cleanPrompt}.`,
+        dialogueOrAction: "SURVIVOR (V.O.): 'Day 47. The radio frequencies went dead twelve hours ago. If the extraction chopper doesn't arrive at dawn, nobody leaves.'",
+        cameraMovement: "Wide Drone Crane Down (24mm Anamorphic)",
+        lightingAtmosphere: "Sodium Vapor & Smoldering Amber Haze",
+        audioFoleyCues: "Low wind howling through shattered glass, distant hollow metallic clanks",
         durationSec: 6,
-        audioPrompt: "Subtle low-frequency synth drone with ambient orchestral tension",
-        visualStyle: "Anamorphic 2.39:1 • 8K Photorealistic"
+        takes: [
+          {
+            takeNumber: 1,
+            label: "Take 1 (Wide Master Crane)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 1 wide cinematic master establishing drone shot, 8k anamorphic lens, atmospheric volumetric haze")}?width=1024&height=576&nologo=true&seed=${baseSeed + 1}&enhance=true&model=flux`,
+            cameraMovement: "Slow Crane Down from 80ft to Street Level",
+            visualStyle: "Anamorphic 2.39:1 • 8K Photorealistic",
+            durationSec: 6,
+            audioPrompt: "Ambient drone synth with desolate wind gusts"
+          },
+          {
+            takeNumber: 2,
+            label: "Take 2 (Tracking OTS)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 1 over the shoulder tracking camera movement, cinematic rim lighting, 35mm film grain")}?width=1024&height=576&nologo=true&seed=${baseSeed + 2}&enhance=true&model=flux`,
+            cameraMovement: "Over-the-Shoulder Slow Forward Track",
+            visualStyle: "35mm Prime • High Contrast",
+            durationSec: 6,
+            audioPrompt: "Crunching gravel footsteps with slow breath"
+          },
+          {
+            takeNumber: 3,
+            label: "Take 3 (Macro Binocular POV)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 1 binocular optical reticle POV, heat distortion, gritty cinematic realism")}?width=1024&height=576&nologo=true&seed=${baseSeed + 3}&enhance=true&model=flux`,
+            cameraMovement: "Simulated Handheld Optical Zoom",
+            visualStyle: "Optical Glass Texture • Reticle Overlay",
+            durationSec: 6,
+            audioPrompt: "Muffled optical adjustment clicks and heavy heartbeat"
+          },
+          {
+            takeNumber: 4,
+            label: "Take 4 (Low Angle Dutch Push)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 1 low angle dutch tilt cinematic shot, dramatic ominous sky, volumetric fog")}?width=1024&height=576&nologo=true&seed=${baseSeed + 4}&enhance=true&model=flux`,
+            cameraMovement: "Dutch Angle 15° Low Dolly Push",
+            visualStyle: "Low Angle Dutch Tilt • Ominous Lighting",
+            durationSec: 6,
+            audioPrompt: "Deep sub-bass swell with sudden screeching crow flutter"
+          }
+        ]
       },
       {
         sceneNumber: 2,
-        title: "Medium Subject Tracking",
-        url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", medium close-up tracking camera movement, shallow depth of field, dramatic rim lighting, cinematic film grain")}?width=1024&height=576&nologo=true&seed=${baseSeed + 2}&enhance=true&model=flux`,
-        prompt: `Scene 2: Medium camera tracking shot capturing intimate emotional detail of ${cleanPrompt}`,
-        cameraMovement: "Steadicam Tracking Forward",
+        title: isZombie ? "The Subterranean Corridor" : "Rising Tension & Infiltration",
+        slug: isZombie ? "INT. METRO TUNNELS - NIGHT" : "INT. LABYRINTH CORRIDOR - NIGHT",
+        narrativeDescription: isZombie 
+          ? "Water drips into stagnant puddles. The survivor's flashlight beam cuts through pitch blackness, illuminating clawed scratches along the concrete walls."
+          : `Tense medium tracking shot following the critical turning point of ${cleanPrompt}.`,
+        dialogueOrAction: "SURVIVOR: (Whispering) 'Keep moving. Don't look back.' (A wet screech echoes from the darkness).",
+        cameraMovement: "Steadicam Forward Tracking (35mm)",
+        lightingAtmosphere: "Chiaroscuro Flashlight Beam & Cyan Shadows",
+        audioFoleyCues: "Steady rhythmic water droplets, raspy breathing, skittering footsteps in shadows",
         durationSec: 5,
-        audioPrompt: "Rising string arpeggio with crisp foley footsteps",
-        visualStyle: "35mm Prime Lens • Soft Bokeh"
+        takes: [
+          {
+            takeNumber: 1,
+            label: "Take 1 (Flashlight Tracking)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 2 dark claustrophobic corridor flashlight tracking shot, intense suspense, volumetric fog")}?width=1024&height=576&nologo=true&seed=${baseSeed + 5}&enhance=true&model=flux`,
+            cameraMovement: "Smooth Steadicam Forward Follow",
+            visualStyle: "High Key Chiaroscuro • 35mm Prime",
+            durationSec: 5,
+            audioPrompt: "Tense heartbeat pulse with subtle water drips"
+          },
+          {
+            takeNumber: 2,
+            label: "Take 2 (Close-up Eye Tension)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 2 tight close up sweating face wide dilated pupils reflection of shadows")}?width=1024&height=576&nologo=true&seed=${baseSeed + 6}&enhance=true&model=flux`,
+            cameraMovement: "Tight Macro Close-Up with Micro Vibration",
+            visualStyle: "50mm Shallow Depth of Field",
+            durationSec: 5,
+            audioPrompt: "Hyper-focused breathing audio and rising dissonant violin"
+          },
+          {
+            takeNumber: 3,
+            label: "Take 3 (Low Floor Crawl View)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 2 low floor angle puddle reflection infected silhouettes in distance")}?width=1024&height=576&nologo=true&seed=${baseSeed + 7}&enhance=true&model=flux`,
+            cameraMovement: "Ground-Level Static Tilt Up",
+            visualStyle: "Wet Surface Reflection • High Gloss",
+            durationSec: 5,
+            audioPrompt: "Puddle splash reverberation and distant guttural hiss"
+          },
+          {
+            takeNumber: 4,
+            label: "Take 4 (360 Orbit Reveal)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 2 dynamic 360 orbit camera move revealing danger behind, cinematic masterpiece")}?width=1024&height=576&nologo=true&seed=${baseSeed + 8}&enhance=true&model=flux`,
+            cameraMovement: "Dynamic 180-Degree Whip Around Reveal",
+            visualStyle: "Action Motion Blur • Edge Flare",
+            durationSec: 5,
+            audioPrompt: "Violent metal screech and sudden jump scare stinger"
+          }
+        ]
       },
       {
         sceneNumber: 3,
-        title: "High Action & Dynamic Motion",
-        url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", dynamic motion blur, high action shutter speed, lens flare, intense high-contrast cinematography")}?width=1024&height=576&nologo=true&seed=${baseSeed + 3}&enhance=true&model=flux`,
-        prompt: `Scene 3: Fast-paced dynamic action sequence showcasing key dramatic conflict in ${cleanPrompt}`,
-        cameraMovement: "Dutch Angle Whip Pan",
-        durationSec: 4,
-        audioPrompt: "Percussive cinematic brass blast with sweeping sub-bass drop",
-        visualStyle: "High Shutter Speed • Action Lighting"
+        title: isZombie ? "The Horde Incursion" : "Climactic Confrontation",
+        slug: isZombie ? "INT. AIRLOCK CONTROL ROOM - CONTINUOUS" : "EXT. EPIC ARENA CONFRONTATION",
+        narrativeDescription: isZombie 
+          ? "The reinforced iron door buckles under the weight of hundreds of infected. Emergency red sirens flash in rhythm as flares ignite."
+          : `High-velocity action sequence bringing the central narrative conflict to maximum intensity.`,
+        dialogueOrAction: "ALARM: 'WARNING. HULL INTEGRITY 12%. PURGE INITIATED IN T-MINUS 30 SECONDS.'",
+        cameraMovement: "High Action Whip Pan & Shutter Blur",
+        lightingAtmosphere: "Strobe Emergency Crimson & Flare Smoke",
+        audioFoleyCues: "Wailing klaxon sirens, metal bending groan, high-frequency tinnitus hum",
+        durationSec: 5,
+        takes: [
+          {
+            takeNumber: 1,
+            label: "Take 1 (Crimson Strobe Action)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 3 high action emergency red strobe lights exploding door horde breach dynamic shutter")}?width=1024&height=576&nologo=true&seed=${baseSeed + 9}&enhance=true&model=flux`,
+            cameraMovement: "Rapid Dynamic Handheld Follow",
+            visualStyle: "45-Degree Shutter Speed • Crimson Wash",
+            durationSec: 5,
+            audioPrompt: "Explosive bass drop with relentless pounding alarms"
+          },
+          {
+            takeNumber: 2,
+            label: "Take 2 (Slow-Mo Flare Ignition)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 3 120fps slow motion magnesium flare drop sparks flying dynamic lighting")}?width=1024&height=576&nologo=true&seed=${baseSeed + 10}&enhance=true&model=flux`,
+            cameraMovement: "120 FPS High-Speed Camera Drop Track",
+            visualStyle: "Slow Motion 120fps • Volumetric Sparks",
+            durationSec: 5,
+            audioPrompt: "Sizzling magnesium burn with deep acoustic sub-drone"
+          },
+          {
+            takeNumber: 3,
+            label: "Take 3 (Medium Combat Tracking)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 3 intense combat action sequence muzzle flash smoke silhouettes")}?width=1024&height=576&nologo=true&seed=${baseSeed + 11}&enhance=true&model=flux`,
+            cameraMovement: "Medium 3-Axis Gimbal Combat Follow",
+            visualStyle: "Muzzle Flare Contrast • Anamorphic Streak",
+            durationSec: 5,
+            audioPrompt: "Crisp mechanical gun click and heavy resonant blast"
+          },
+          {
+            takeNumber: 4,
+            label: "Take 4 (Overhead Drone Top-Down)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 3 birds eye top down view massive horde surrounding lone defense circle")}?width=1024&height=576&nologo=true&seed=${baseSeed + 12}&enhance=true&model=flux`,
+            cameraMovement: "Top-Down God's Eye Slow Rotation",
+            visualStyle: "90° Top-Down Aerial • Macro Geometry",
+            durationSec: 5,
+            audioPrompt: "Swirling orchestral crescendo with deafening wall of sound"
+          }
+        ]
       },
       {
         sceneNumber: 4,
-        title: "Climax & Horizon Resolve",
-        url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", epic wide horizon climax shot, golden hour volumetric god rays, majestic cinematic finale, masterwork")}?width=1024&height=576&nologo=true&seed=${baseSeed + 4}&enhance=true&model=flux`,
-        prompt: `Scene 4: Breathtaking wide golden-hour horizon finale resolving the narrative arc of ${cleanPrompt}`,
-        cameraMovement: "Slow Orbit Pullback",
-        durationSec: 8,
-        audioPrompt: "Full orchestral crescendo resolving into a resonant acoustic note",
-        visualStyle: "Volumetric God Rays • Masterwork Render"
+        title: isZombie ? "The Dawn Extraction" : "Horizon Finale & Resolve",
+        slug: isZombie ? "EXT. ROOFTOP HELIPAD - SUNRISE" : "EXT. GOLDEN HORIZON - SUNRISE",
+        narrativeDescription: isZombie 
+          ? "Golden sunlight breaks through the toxic fog over the city. A rescue helicopter lowers a winch cable as the survivor reaches the rooftop edge."
+          : `Grand emotional conclusion resolving the cinematic arc with triumphant visual scope.`,
+        dialogueOrAction: "PILOT (Over Radio): 'Vanguard-1, we have visual. Grab the line, now!' SURVIVOR: 'I made it.'",
+        cameraMovement: "Majestic Orbit Pullback into Sky",
+        lightingAtmosphere: "Golden Hour God Rays & Lens Flares",
+        audioFoleyCues: "Heavy twin-rotor helicopter blade thrum, acoustic cello resolving into harmonic major chord",
+        durationSec: 7,
+        takes: [
+          {
+            takeNumber: 1,
+            label: "Take 1 (Golden Horizon Pullback)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 4 epic rooftop rescue helicopter sunrise golden hour god rays cinematic masterwork")}?width=1024&height=576&nologo=true&seed=${baseSeed + 13}&enhance=true&model=flux`,
+            cameraMovement: "Majestic 360-Degree Rising Crane Pullback",
+            visualStyle: "Golden Hour 2.39:1 • Anamorphic God Rays",
+            durationSec: 7,
+            audioPrompt: "Epic cinematic horn resolution with roaring helicopter rotors"
+          },
+          {
+            takeNumber: 2,
+            label: "Take 2 (Close-up Hand Clasp)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 4 emotional close up reaching hand gripping cable golden sunlight lens flare")}?width=1024&height=576&nologo=true&seed=${baseSeed + 14}&enhance=true&model=flux`,
+            cameraMovement: "Slow Motion Macro Focus Pull",
+            visualStyle: "Warm Film Tone • Bokeh Highlight",
+            durationSec: 7,
+            audioPrompt: "Wind rushing past mic and triumphant string note"
+          },
+          {
+            takeNumber: 3,
+            label: "Take 3 (Wide Desolate City View)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 4 wide angle helicopter departing over massive ruined city sunrise masterpiece")}?width=1024&height=576&nologo=true&seed=${baseSeed + 15}&enhance=true&model=flux`,
+            cameraMovement: "Nose-Mounted Aerial Follow Shot",
+            visualStyle: "IMAX 70mm Clarity • Vast Landscape",
+            durationSec: 7,
+            audioPrompt: "Distant rotor fades into beautiful ambient acoustic guitar"
+          },
+          {
+            takeNumber: 4,
+            label: "Take 4 (Fade to Black Title Card)",
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ", scene 4 silhouette survivor against majestic rising sun dramatic horizon")}?width=1024&height=576&nologo=true&seed=${baseSeed + 16}&enhance=true&model=flux`,
+            cameraMovement: "Static Centered Silhouette Master",
+            visualStyle: "High Contrast Silhouette • Golden Sky",
+            durationSec: 7,
+            audioPrompt: "Final resonant bass note settling into peaceful silence"
+          }
+        ]
       }
     ];
 
-    generatedMedia = {
-      type: "movie",
-      url: movieClips[0].url,
-      prompt: cleanPrompt,
-      title: `Cinematic Movie: "${cleanPrompt.slice(0, 36)}..."`,
-      model: "Veo 3 • 4-Clip Swarm",
-      durationSec: 23,
-      fps: 24,
-      width: 1024,
-      height: 576,
-      generatedAt: new Date().toLocaleTimeString(),
-      clips: movieClips
+    movieProduction = {
+      id: `mov-${Date.now()}`,
+      title,
+      logline,
+      genre,
+      mood: isZombie ? "Dread • Survival • Tension • Hope" : "Intense • Atmospheric • Cinematic",
+      estimatedRuntimeSec: 23,
+      stage: isApproval ? "completed" : "script_approval",
+      scenes: scenesData,
+      model: "Veo 3 • 4-Clip Swarm (16 Takes Total)",
+      activeSceneIndex: 0
     };
 
     toolsUsed.push({
-      name: "Veo 3 Movie Swarm Generator",
+      name: "Veo 3 Multi-Agent Movie Director",
       live: true,
       status: "completed",
-      details: `Generated 4 Multi-Scene Clips for "${cleanPrompt.slice(0, 30)}"`
+      details: `${title} • ${scenesData.length} Scenes • 16 Veo 3 Multi-Angle Takes Generated`
     });
 
     sources.push({
-      title: `Veo 3 Cinematic Movie Swarm (4 Clips): "${cleanPrompt.slice(0, 40)}"`,
-      url: movieClips[0].url,
-      type: "movie_clips"
+      title: `Screenplay & Storyboard Breakdown: "${title}"`,
+      url: scenesData[0].takes[0].url,
+      type: "screenplay"
     });
 
-    liveDataSnippets += `\n\n### 🎬 Generated AI Movie Swarm (4 Clips Rendered Inline):\n` +
-      `- **Screenplay Concept:** "${cleanPrompt}"\n` +
-      `- **Scene 1 (0:00 - 0:06):** Opening Establishing Shot (Wide Drone Crane)\n` +
-      `- **Scene 2 (0:06 - 0:11):** Medium Subject Tracking (Steadicam Forward)\n` +
-      `- **Scene 3 (0:11 - 0:15):** High Action Dynamic Motion (Whip Pan Action)\n` +
-      `- **Scene 4 (0:15 - 0:23):** Climax Horizon Resolve (Orbit Pullback Finale)\n` +
-      `- **Total Duration:** 23 Seconds • 24 FPS • 4 Multi-Scene Swarm Timeline\n`;
+    liveDataSnippets += `\n\n### 🎬 Screenplay & Veo 3 Multi-Scene Production: "${title}"\n` +
+      `- **Genre:** ${genre}\n` +
+      `- **Logline:** ${logline}\n` +
+      `- **Director Stage:** ${movieProduction.stage === 'script_approval' ? 'Director Script Approval Required' : 'Multi-Agent Production Active'}\n` +
+      `- **Scene 1:** ${scenesData[0].slug} — "${scenesData[0].title}" (4 Veo 3 takes)\n` +
+      `- **Scene 2:** ${scenesData[1].slug} — "${scenesData[1].title}" (4 Veo 3 takes)\n` +
+      `- **Scene 3:** ${scenesData[2].slug} — "${scenesData[2].title}" (4 Veo 3 takes)\n` +
+      `- **Scene 4:** ${scenesData[3].slug} — "${scenesData[3].title}" (4 Veo 3 takes)\n`;
   } else if (isImageRequest) {
     let cleanPrompt = prompt
       .replace(/^(generate|create|draw|make|render|produce|show me)\s+(an?\s+)?(image|picture|photo|artwork|illustration|wallpaper|sketch)\s+(of|about|depicting)?/i, "")
@@ -3028,6 +3204,7 @@ Instructions:
       analyticsData,
       generatedMedia,
       darkWebResearch,
+      movieProduction,
       mode: toolsUsed.length > 0 ? "live-grounded" : "standard",
       usage: tokenInfo,
     });
@@ -3047,6 +3224,7 @@ Instructions:
           analyticsData,
           generatedMedia,
           darkWebResearch,
+          movieProduction,
           mode: "live-grounded",
           usage: tokenInfo,
         });
@@ -3057,6 +3235,8 @@ Instructions:
     let responseText = "";
     if (browserTargetUrl) {
       responseText = `### 🚀 Opening Browser Action\n\nI have launched **${browserTargetUrl}** for you.\n\n* **Target URL:** [${browserTargetUrl}](${browserTargetUrl})\n* **Autonomous Browser Agent:** Active & Ready\n\n*You can also open the **Browser AI Agent** from the sidebar to automate tasks, fill forms, or extract tokens directly from this website.*`;
+    } else if (movieProduction) {
+      responseText = `### 🎬 Screenplay Generated: "${movieProduction.title}"\n\nI have synthesized the complete multi-scene screenplay breakdown for: **${movieProduction.title}** (${movieProduction.genre}).\n\n* **Logline:** ${movieProduction.logline}\n* **Runtime:** ~${movieProduction.estimatedRuntimeSec}s • 24 FPS Cinematic\n* **Scenes Scripted:** ${movieProduction.scenes.length} Multi-Angle Scenes (16 Veo 3 Video Takes Total)\n\n*Review the screenplay breakdown above and click **"Approve Script & Produce Movie Clips"** to synthesize the Veo 3 multi-camera video swarm.*`;
     } else if (generatedMedia) {
       responseText = `### ${generatedMedia.type === "movie" ? "🎬 AI Multi-Clip Movie Synthesis Complete" : generatedMedia.type === "video" ? "🎬 AI Video Generation Complete" : "🎨 AI Image Generation Complete"}\n\nI have generated your visual media request for: **"${generatedMedia.prompt}"**.\n\n* **Model:** ${generatedMedia.model}\n* **Scenes Rendered:** ${generatedMedia.clips ? `${generatedMedia.clips.length} Cinematic Multi-Scene Clips` : "Single Frame"}\n* **Resolution:** ${generatedMedia.resolution || `${generatedMedia.width}x${generatedMedia.height} HDR`}\n\n*The movie timeline and clips have been rendered directly into your chat canvas above.*`;
     } else if (darkWebResearch) {
@@ -3078,6 +3258,7 @@ Instructions:
       analyticsData,
       generatedMedia,
       darkWebResearch,
+      movieProduction,
       mode: "live-grounded",
     });
   }

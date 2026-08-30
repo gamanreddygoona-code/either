@@ -45,6 +45,7 @@ import {
 } from "./ConnectorIcons";
 import { TrafficAnalyticsCard } from "./TrafficAnalyticsCard";
 import { GeneratedMediaCard } from "./GeneratedMediaCard";
+import { MovieProductionCard } from "./MovieProductionCard";
 import { AppConnector, ChatMessage, UserProfile } from "../types";
 
 interface MainChatViewProps {
@@ -356,6 +357,12 @@ export const MainChatView: React.FC<MainChatViewProps> = ({
                     )}
                     {!isUser && msg.analyticsData && (
                       <TrafficAnalyticsCard report={msg.analyticsData} onInspectAnother={(u) => onSendMessage(`Inspect live traffic and online users for ${u}`, selectedModel)} />
+                    )}
+                    {!isUser && msg.movieProduction && (
+                      <MovieProductionCard
+                        production={msg.movieProduction}
+                        onApproveAndProduce={() => onSendMessage(`Approve screenplay and start Veo 3 production for "${msg.movieProduction?.title}"`, selectedModel)}
+                      />
                     )}
                     {!isUser && msg.generatedMedia && (
                       <GeneratedMediaCard media={msg.generatedMedia} onRegenerate={(p) => onSendMessage(p, selectedModel)} />

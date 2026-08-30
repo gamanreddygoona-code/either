@@ -178,6 +178,44 @@ export interface DarkWebResearchPayload {
   timestamp: string;
 }
 
+export interface MovieTake {
+  takeNumber: number;
+  label: string;
+  url: string;
+  cameraMovement: string;
+  visualStyle: string;
+  durationSec: number;
+  audioPrompt: string;
+}
+
+export interface SceneScript {
+  sceneNumber: number;
+  title: string;
+  slug: string;
+  narrativeDescription: string;
+  dialogueOrAction: string;
+  cameraMovement: string;
+  lightingAtmosphere: string;
+  audioFoleyCues: string;
+  durationSec: number;
+  selectedTakeIndex?: number;
+  takes?: MovieTake[];
+}
+
+export interface MovieProductionPayload {
+  id: string;
+  title: string;
+  logline: string;
+  genre: string;
+  mood: string;
+  estimatedRuntimeSec: number;
+  stage: "script_approval" | "producing_clips" | "completed";
+  scenes: SceneScript[];
+  approvedAt?: string;
+  model: string;
+  activeSceneIndex?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -207,6 +245,7 @@ export interface ChatMessage {
   analyticsData?: UrlTrafficReport;
   generatedMedia?: GeneratedMediaPayload;
   darkWebResearch?: DarkWebResearchPayload;
+  movieProduction?: MovieProductionPayload;
 }
 
 export interface ChatTab {
