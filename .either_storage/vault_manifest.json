@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "vaultId": "vault-sovereign-4b19650d",
+  "offlineMode": false,
+  "encrypted": true,
+  "lastSyncTimestamp": 1788064702921,
+  "checksum": "a56bbda13b0a0bffc3654c95f6940c47af0d609df62f10e402551300fe9281cf",
+  "collections": [
+    "rag",
+    "memory",
+    "connectors",
+    "telemetry"
+  ]
+}

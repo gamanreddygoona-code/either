@@ -32,6 +32,11 @@ import { VectorEngine } from "./server/rag/vectorEngine";
 import { MemoryEngine } from "./server/memory/memoryEngine";
 import { AgentGraphOrchestrator } from "./server/orchestrator/agentGraph";
 import { MultiModelRouter } from "./server/multiModelRouter";
+import { MultiAgentOrchestrator } from "./server/agents/orchestrator";
+import { ContextSelector } from "./server/context/contextSelector";
+import { PluginMarketplace } from "./server/plugins/pluginMarketplace";
+import { CollaborativeWorkspaceEngine } from "./server/collab/collaborativeWorkspace";
+import { LocalFirstSyncEngine } from "./server/localFirst/syncEngine";
 import { rateLimiterMiddleware, detectPromptInjection, sanitizeAiOutput, logSecurityEvent, encryptSecret, decryptSecret } from "./server/security";
 import { PaymentTrackerEngine } from "./server/paymentTracker";
 import { requireAuth, requireAdmin, sanitizeAndValidateInputs, timingSafeCompare, signUserToken } from "./server/authMiddleware";
@@ -5803,6 +5808,102 @@ app.post("/api/models/generate", async (req, res) => {
   const router = MultiModelRouter.getInstance();
   const result = await router.generate(prompt, systemInstruction, preferredModel);
   res.json({ success: true, result });
+});
+
+/* ================= Multi-Agent StateGraph Swarm Orchestrator Endpoints ================= */
+
+app.post("/api/agents/orchestrate", async (req, res) => {
+  const { sessionId = "sess-" + Date.now(), prompt } = req.body;
+  if (!prompt || typeof prompt !== "string") {
+    return res.status(400).json({ error: "prompt is required" });
+  }
+  const orchestrator = MultiAgentOrchestrator.getInstance();
+  const state = await orchestrator.run(sessionId, prompt);
+  res.json({ success: true, sessionId, state });
+});
+
+app.post("/api/agents/orchestrate/resume", async (req, res) => {
+  const { sessionId, approve = true } = req.body;
+  if (!sessionId) {
+    return res.status(400).json({ error: "sessionId is required" });
+  }
+  const orchestrator = MultiAgentOrchestrator.getInstance();
+  const state = await orchestrator.resumeApproval(sessionId, approve);
+  if (!state) {
+    return res.status(404).json({ error: "Session not found or not waiting for approval" });
+  }
+  res.json({ success: true, sessionId, state });
+});
+
+/* ================= Advanced Context Engineering & Budget Optimizer ================= */
+
+app.post("/api/context/optimize", async (req, res) => {
+  const { query, availableTokens = 4000 } = req.body;
+  if (!query || typeof query !== "string") {
+    return res.status(400).json({ error: "query is required" });
+  }
+  const selector = ContextSelector.getInstance();
+  const context = await selector.buildOptimalContext(query, availableTokens);
+  res.json({ success: true, context });
+});
+
+/* ================= Plugin & Extension Marketplace Endpoints ================= */
+
+app.get("/api/plugins/marketplace", (_req, res) => {
+  const hub = PluginMarketplace.getInstance();
+  res.json({ success: true, plugins: hub.listMarketplace() });
+});
+
+app.post("/api/plugins/install", (req, res) => {
+  const { pluginId } = req.body;
+  if (!pluginId) {
+    return res.status(400).json({ error: "pluginId is required" });
+  }
+  const hub = PluginMarketplace.getInstance();
+  const success = hub.installPlugin(pluginId);
+  res.json({ success, pluginId });
+});
+
+/* ================= Real-Time Collaborative CRDT Workspace Endpoints ================= */
+
+app.get("/api/collab/room/:roomId", (req, res) => {
+  const engine = CollaborativeWorkspaceEngine.getInstance();
+  const room = engine.getOrCreateRoom(req.params.roomId);
+  res.json({ success: true, room });
+});
+
+app.post("/api/collab/presence", (req, res) => {
+  const { roomId, presence } = req.body;
+  if (!roomId || !presence) {
+    return res.status(400).json({ error: "roomId and presence are required" });
+  }
+  const engine = CollaborativeWorkspaceEngine.getInstance();
+  const room = engine.updatePresence(roomId, presence);
+  res.json({ success: true, room });
+});
+
+app.post("/api/collab/delta", (req, res) => {
+  const { roomId, delta } = req.body;
+  if (!roomId || !delta) {
+    return res.status(400).json({ error: "roomId and delta are required" });
+  }
+  const engine = CollaborativeWorkspaceEngine.getInstance();
+  const room = engine.applyDelta(roomId, delta);
+  res.json({ success: true, room });
+});
+
+/* ================= Local-First Sovereign Vault & Cloud Sync Endpoints ================= */
+
+app.get("/api/local-first/manifest", (_req, res) => {
+  const sync = LocalFirstSyncEngine.getInstance();
+  res.json({ success: true, manifest: sync.getVaultManifest() });
+});
+
+app.post("/api/local-first/snapshot", (req, res) => {
+  const { passphrase } = req.body || {};
+  const sync = LocalFirstSyncEngine.getInstance();
+  const snapshot = sync.createEncryptedSnapshot(passphrase);
+  res.json({ success: true, snapshot });
 });
 
 /* ================= Sovereign Payment & Revenue Tracking Endpoints ================= */
