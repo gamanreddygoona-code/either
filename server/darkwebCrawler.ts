@@ -39,7 +39,10 @@ export interface ThreatIntelligenceReport {
   firewallStatus: any;
 }
 
-// 1. Real Ahmia .onion Search Crawler with anti-bot token acquisition
+/**
+ * 1. Real Ahmia .onion Search Crawler with anti-bot token acquisition
+ * Performs defensive OSINT querying over Ahmia Tor index
+ */
 export async function crawlAhmia(query: string): Promise<CrawledOnion[]> {
   try {
     const home = await fetch('https://ahmia.fi/', {
@@ -96,17 +99,20 @@ export async function crawlAhmia(query: string): Promise<CrawledOnion[]> {
   }
 }
 
-// 2. Real HaveIBeenPwned k-Anonymity SHA-1 Breach API
+/**
+ * 2. 100% Free HaveIBeenPwned k-Anonymity SHA-1 Breach API
+ * Requires NO PAID API KEY or registration. Queries 5-character SHA-1 range bucket.
+ */
 export async function checkHIBPBreach(term: string): Promise<any> {
   try {
     const sha1 = crypto.createHash('sha1').update(term.trim()).digest('hex').toUpperCase();
     const prefix = sha1.slice(0, 5);
     const suffix = sha1.slice(5);
-    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+    const res = await fetch('https://api.pwnedpasswords.com/range/' + prefix, {
       headers: { 'User-Agent': 'Either-ThreatIntelligence/1.0' },
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(6000)
     });
-    if (!res.ok) return { checked: false, query: term };
+    if (!res.ok) return { checked: false, query: term, error: 'HTTP ' + res.status };
     const text = await res.text();
     const lines = text.split('\n');
     for (const line of lines) {
@@ -119,7 +125,8 @@ export async function checkHIBPBreach(term: string): Promise<any> {
           occurrences: parseInt(count, 10),
           sha1Prefix: prefix,
           severity: parseInt(count, 10) > 1000 ? 'CRITICAL' : 'HIGH',
-          recommendation: 'Credential was exposed in known dark web breach collections. Immediate password reset required.'
+          source: 'HaveIBeenPwned (k-Anonymity Free Tier)',
+          recommendation: 'Credential was exposed in known dark web breach collections. Immediate credential rotation required.'
         };
       }
     }
@@ -130,6 +137,7 @@ export async function checkHIBPBreach(term: string): Promise<any> {
       occurrences: 0,
       sha1Prefix: prefix,
       severity: 'SAFE',
+      source: 'HaveIBeenPwned (k-Anonymity Free Tier)',
       recommendation: 'No direct exposure detected in public HIBP breach range catalog.'
     };
   } catch (e: any) {
@@ -137,7 +145,9 @@ export async function checkHIBPBreach(term: string): Promise<any> {
   }
 }
 
-// 3. Real CISA Known Exploited Vulnerabilities (KEV) Live Feed
+/**
+ * 3. Real CISA Known Exploited Vulnerabilities (KEV) Live Feed
+ */
 export async function fetchCisaKev(query: string): Promise<any[]> {
   try {
     const res = await fetch('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json', {
@@ -152,7 +162,7 @@ export async function fetchCisaKev(query: string): Promise<any[]> {
     const terms = qLower.split(/\s+/).filter(t => t.length > 2);
     
     const matched = data.vulnerabilities.filter(v => {
-      const fullText = `${v.cveID} ${v.vendorProject} ${v.product} ${v.vulnerabilityName} ${v.shortDescription}`.toLowerCase();
+      const fullText = (v.cveID + ' ' + v.vendorProject + ' ' + v.product + ' ' + v.vulnerabilityName + ' ' + v.shortDescription).toLowerCase();
       return terms.some(t => fullText.includes(t));
     }).slice(0, 5);
 
@@ -171,7 +181,9 @@ export async function fetchCisaKev(query: string): Promise<any[]> {
   }
 }
 
-// 4. Real ThreatFox / Abuse.ch Live IOC Search
+/**
+ * 4. Real ThreatFox / Abuse.ch Live IOC Search
+ */
 export async function fetchThreatFox(query: string): Promise<any[]> {
   try {
     const term = query.split(/\s+/)[0];
@@ -199,20 +211,60 @@ export async function fetchThreatFox(query: string): Promise<any[]> {
   }
 }
 
-// 5. Probe Tor SOCKS5H service status
-export async function probeTorService(torProxy: string = 'socks5h://127.0.0.1:9050'): Promise<boolean> {
-  return new Promise<boolean>((resolve) => {
+/**
+ * 5. Probe Single TCP Port for Tor SOCKS Proxy
+ */
+export async function probeSinglePort(host: string, port: number): Promise<boolean> {
+  return new Promise(resolve => {
     try {
       const sock = new net.Socket();
-      sock.setTimeout(1200);
-      const [host, portStr] = torProxy.replace('socks5h://', '').replace('socks5://', '').split(':');
-      const port = parseInt(portStr || '9050', 10);
+      sock.setTimeout(800);
       sock.once('connect', () => { sock.destroy(); resolve(true); });
       sock.once('timeout', () => { sock.destroy(); resolve(false); });
       sock.once('error', () => { sock.destroy(); resolve(false); });
-      sock.connect(port, host || '127.0.0.1');
+      sock.connect(port, host);
     } catch {
       resolve(false);
     }
   });
+}
+
+/**
+ * 6. Intelligent Tor Service Auto-Discovery (Port 9050, Port 9150, Custom TOR_PROXY)
+ * Returns { available: boolean, proxy: string, mode: string }
+ */
+export async function discoverTorService(preferredProxy?: string): Promise<{
+  available: boolean;
+  proxy: string;
+  mode: 'Live SOCKS5H Daemon' | 'Tor Browser SOCKS5' | 'Clearnet OSINT Gateway';
+}> {
+  if (preferredProxy) {
+    const [host, portStr] = preferredProxy.replace(/socks5h?:\/\//, '').split(':');
+    const port = parseInt(portStr || '9050', 10);
+    const ok = await probeSinglePort(host || '127.0.0.1', port);
+    if (ok) {
+      return { available: true, proxy: preferredProxy, mode: 'Live SOCKS5H Daemon' };
+    }
+  }
+
+  const daemonActive = await probeSinglePort('127.0.0.1', 9050);
+  if (daemonActive) {
+    return { available: true, proxy: 'socks5h://127.0.0.1:9050', mode: 'Live SOCKS5H Daemon' };
+  }
+
+  const browserActive = await probeSinglePort('127.0.0.1', 9150);
+  if (browserActive) {
+    return { available: true, proxy: 'socks5h://127.0.0.1:9150', mode: 'Tor Browser SOCKS5' };
+  }
+
+  return {
+    available: false,
+    proxy: 'socks5h://127.0.0.1:9050',
+    mode: 'Clearnet OSINT Gateway'
+  };
+}
+
+export async function probeTorService(torProxy: string = 'socks5h://127.0.0.1:9050'): Promise<boolean> {
+  const discovered = await discoverTorService(torProxy);
+  return discovered.available;
 }

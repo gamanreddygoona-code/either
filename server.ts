@@ -24,7 +24,7 @@ import {
   stopTradingBot 
 } from "./server/tradingEngine";
 import { AIFirewall } from "./server/aiFirewall";
-import { crawlAhmia, checkHIBPBreach, fetchCisaKev, fetchThreatFox, probeTorService } from "./server/darkwebCrawler";
+import { crawlAhmia, checkHIBPBreach, fetchCisaKev, fetchThreatFox, probeTorService, discoverTorService } from "./server/darkwebCrawler";
 import { ThreatIntelEngine } from "./server/threatIntel";
 import { MCPServer } from "./server/mcpServer";
 import { rateLimiterMiddleware, detectPromptInjection, sanitizeAiOutput, logSecurityEvent, encryptSecret, decryptSecret } from "./server/security";
@@ -5622,23 +5622,23 @@ function isValidOnionAddress(addr: string): boolean {
 }
 
 app.get("/api/osint/darkweb/status", async (req, res) => {
-  const torProxy = process.env.TOR_PROXY || "socks5h://127.0.0.1:9050";
-  const torAvailable = await probeTorService(torProxy);
+  const preferredProxy = process.env.TOR_PROXY;
+  const torDiscovery = await discoverTorService(preferredProxy);
   const user = (currentUser.email || authenticatedUserProfile.email || "unknown").toLowerCase();
   const firewall = AIFirewall.getInstance().getStatus(user);
 
   res.json({
     success: true,
     tor: {
-      available: torAvailable,
-      proxy: torProxy,
-      mode: torAvailable ? "Live SOCKS5H Daemon" : "Clearnet Threat Intel Gateway"
+      available: torDiscovery.available,
+      proxy: torDiscovery.proxy,
+      mode: torDiscovery.mode
     },
     crawlers: {
-      ahmia: "LIVE",
-      hibp: "LIVE",
-      cisaKev: "LIVE",
-      threatFox: "LIVE"
+      ahmia: "LIVE (Ahmia Tor Search Index)",
+      hibp: "LIVE (k-Anonymity Free Tier — No Key Required)",
+      cisaKev: "LIVE (CISA Known Exploited Zero-Days)",
+      threatFox: "LIVE (Abuse.ch Malware IOCs)"
     },
     firewall
   });
