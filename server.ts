@@ -2754,7 +2754,7 @@ app.post("/api/chat", async (req, res) => {
   // 11. Multi-Step Screenplay & Veo 3 Multi-Agent Movie Production Engine
   let generatedMedia: any = null;
   let movieProduction: any = null;
-  const isMovieRequest = queryLower.includes("movie") || queryLower.includes("clips") || queryLower.includes("film") || queryLower.includes("zombie") || queryLower.includes("make me movie") || queryLower.includes("create movie") || queryLower.includes("video swarm");
+  const isMovieRequest = queryLower.includes("movie") || queryLower.includes("clips") || queryLower.includes("film") || queryLower.includes("zombie") || queryLower.includes("screenplay") || queryLower.includes("veo") || queryLower.includes("swarm") || queryLower.includes("approve") || queryLower.includes("takes") || queryLower.includes("scene") || queryLower.includes("make me movie") || queryLower.includes("create movie") || queryLower.includes("video swarm");
   const isImageRequest = !isMovieRequest && (queryLower.includes("image") || queryLower.includes("photo") || queryLower.includes("picture") || queryLower.includes("draw") || queryLower.includes("wallpaper") || queryLower.includes("artwork") || queryLower.includes("generate an image") || queryLower.includes("create image") || queryLower.includes("generate image") || queryLower.includes("sketch") || queryLower.includes("video"));
 
   if (isMovieRequest) {
