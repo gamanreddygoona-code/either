@@ -27,6 +27,11 @@ import { AIFirewall } from "./server/aiFirewall";
 import { crawlAhmia, checkHIBPBreach, fetchCisaKev, fetchThreatFox, probeTorService, discoverTorService } from "./server/darkwebCrawler";
 import { ThreatIntelEngine } from "./server/threatIntel";
 import { MCPServer } from "./server/mcpServer";
+import { MCPHub } from "./server/mcp/mcpHub";
+import { VectorEngine } from "./server/rag/vectorEngine";
+import { MemoryEngine } from "./server/memory/memoryEngine";
+import { AgentGraphOrchestrator } from "./server/orchestrator/agentGraph";
+import { MultiModelRouter } from "./server/multiModelRouter";
 import { rateLimiterMiddleware, detectPromptInjection, sanitizeAiOutput, logSecurityEvent, encryptSecret, decryptSecret } from "./server/security";
 import { PaymentTrackerEngine } from "./server/paymentTracker";
 import { requireAuth, requireAdmin, sanitizeAndValidateInputs, timingSafeCompare, signUserToken } from "./server/authMiddleware";
@@ -5385,16 +5390,6 @@ app.get("/api/mcp/health", (_req, res) => {
   res.json({ status: "ok", mcp: "Either MCP Server", version: "1.0.0", tools: ["generate_premium_landing", "list_themes", "edit_landing_text"], activeServers: 100, themes: LANDING_THEMES.length });
 });
 
-app.get("/api/mcp/tools", (_req, res) => {
-  res.json({
-    tools: [
-      { name: "generate_premium_landing", description: "Generate a random premium animated landing page via MCP", inputSchema: { type: "object", properties: { style: { type: "string", enum: ["random", "aurora", "ocean", "sunset", "forest", "cosmic", "pearl"] }, prompt: { type: "string" } } } },
-      { name: "list_themes", description: "List available premium themes" },
-      { name: "edit_landing_text", description: "Edit landing text via AI", inputSchema: { type: "object", properties: { field: { type: "string" }, newText: { type: "string" } } } },
-    ]
-  });
-});
-
 app.post("/api/mcp/generate-landing", async (req, res) => {
   const { style = "random", prompt = "" } = req.body || {};
   let theme = LANDING_THEMES.find(t => t.id === style);
@@ -5685,14 +5680,14 @@ app.post("/api/threat-intel", async (req, res) => {
   }
 });
 
-/* ================= Model Context Protocol (MCP) Endpoints ================= */
+/* ================= Model Context Protocol (MCP) Standard Server Hub ================= */
 
 app.get("/api/mcp/tools", (_req, res) => {
-  const mcp = MCPServer.getInstance();
+  const mcpHub = MCPHub.getInstance();
   res.json({
     protocolVersion: "2024-11-05",
     server: { name: "either-ai-workspace-mcp", version: "1.0.0" },
-    tools: mcp.listTools()
+    tools: mcpHub.listTools()
   });
 });
 
@@ -5702,13 +5697,112 @@ app.post("/api/mcp/call", async (req, res) => {
     return res.status(400).json({ error: "Tool name is required" });
   }
 
-  const mcp = MCPServer.getInstance();
+  const mcpHub = MCPHub.getInstance();
   try {
-    const result = await mcp.callTool(name, args || {});
-    res.json({ success: true, tool: name, result });
+    const result = await mcpHub.callTool(name, args || {});
+    res.json({ success: !result.isError, tool: name, result });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message || "MCP tool execution failed" });
   }
+});
+
+/* ================= Sovereign Vector RAG & GraphRAG Endpoints ================= */
+
+app.post("/api/rag/index", async (req, res) => {
+  const { source = "user_doc", content } = req.body;
+  if (!content || typeof content !== "string") {
+    return res.status(400).json({ error: "content (string) is required" });
+  }
+  const rag = VectorEngine.getInstance();
+  const added = await rag.indexDocument(source, content);
+  res.json({ success: true, indexedChunks: added, source });
+});
+
+app.post("/api/rag/search", (req, res) => {
+  const { query, topK = 5 } = req.body;
+  if (!query || typeof query !== "string") {
+    return res.status(400).json({ error: "query (string) is required" });
+  }
+  const rag = VectorEngine.getInstance();
+  const results = rag.search(query, topK);
+  res.json({ success: true, count: results.length, results });
+});
+
+app.get("/api/rag/stats", (_req, res) => {
+  const rag = VectorEngine.getInstance();
+  res.json({ success: true, stats: rag.getStats() });
+});
+
+/* ================= Persistent Multi-Layer Agent Memory Endpoints ================= */
+
+app.get("/api/memory/stats", (_req, res) => {
+  const memory = MemoryEngine.getInstance();
+  res.json({ success: true, stats: memory.getSummary() });
+});
+
+app.post("/api/memory/episodic", (req, res) => {
+  const { query = "", limit = 5 } = req.body;
+  const memory = MemoryEngine.getInstance();
+  const history = memory.queryEpisodic(query, limit);
+  res.json({ success: true, count: history.length, history });
+});
+
+app.get("/api/memory/semantic", (_req, res) => {
+  const memory = MemoryEngine.getInstance();
+  const facts = memory.getSemanticFacts();
+  res.json({ success: true, count: facts.length, facts });
+});
+
+/* ================= Stateful LangGraph Agent Orchestrator Endpoints ================= */
+
+app.post("/api/agent/graph/run", async (req, res) => {
+  const { query } = req.body;
+  if (!query || typeof query !== "string") {
+    return res.status(400).json({ error: "query is required" });
+  }
+  const userEmail = (currentUser.email || authenticatedUserProfile.email || "user@either.local").toLowerCase();
+  const orchestrator = AgentGraphOrchestrator.getInstance();
+  const state = await orchestrator.runPipeline(query, userEmail);
+  res.json({ success: true, state });
+});
+
+app.post("/api/agent/graph/approve", (req, res) => {
+  const { executionId, approve = true } = req.body;
+  if (!executionId) {
+    return res.status(400).json({ error: "executionId is required" });
+  }
+  const orchestrator = AgentGraphOrchestrator.getInstance();
+  const state = orchestrator.resumeHumanApproval(executionId, approve);
+  if (!state) {
+    return res.status(404).json({ error: "Execution not found or not in HUMAN_APPROVAL state" });
+  }
+  res.json({ success: true, state });
+});
+
+app.get("/api/agent/graph/checkpoint/:id", (req, res) => {
+  const orchestrator = AgentGraphOrchestrator.getInstance();
+  const state = orchestrator.rollbackToCheckpoint(req.params.id);
+  if (!state) {
+    return res.status(404).json({ error: "Checkpoint not found" });
+  }
+  res.json({ success: true, state });
+});
+
+/* ================= Intelligent Multi-Model Router Endpoints ================= */
+
+app.get("/api/models/providers", (_req, res) => {
+  const router = MultiModelRouter.getInstance();
+  res.json({ success: true, providers: router.getAvailableProviders() });
+});
+
+app.post("/api/models/generate", async (req, res) => {
+  const { prompt, systemInstruction, preferredModel } = req.body;
+  if (!prompt || typeof prompt !== "string") {
+    return res.status(400).json({ error: "prompt is required" });
+  }
+  const router = MultiModelRouter.getInstance();
+  const result = await router.generate(prompt, systemInstruction, preferredModel);
+  res.json({ success: true, result });
 });
 
 /* ================= Sovereign Payment & Revenue Tracking Endpoints ================= */

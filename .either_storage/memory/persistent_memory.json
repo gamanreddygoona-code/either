@@ -1,0 +1,107 @@
+{
+  "episodic": [
+    {
+      "id": "ep-1788064208586-a8f19d",
+      "timestamp": 1788064208586,
+      "user": "gamanreddy.goona@gmail.com",
+      "query": "analyze security vulnerabilities in code",
+      "summary": "Autonomous graph execution completed successfully for query: \"analyze security vulnerabilities in code\".",
+      "actionsTaken": [
+        "1. Inspect available workspace tools",
+        "2. Execute contextual query resolution",
+        "3. Validate security and format response"
+      ],
+      "outcome": "success",
+      "tags": []
+    },
+    {
+      "id": "ep-1788064201540-979b1d",
+      "timestamp": 1788064201540,
+      "user": "gamanreddy.goona@gmail.com",
+      "query": "analyze security vulnerabilities in code",
+      "summary": "Autonomous graph execution completed successfully for query: \"analyze security vulnerabilities in code\".",
+      "actionsTaken": [
+        "1. Inspect available workspace tools",
+        "2. Execute contextual query resolution",
+        "3. Validate security and format response"
+      ],
+      "outcome": "success",
+      "tags": []
+    },
+    {
+      "id": "ep-1788064131219-a5ddb4",
+      "timestamp": 1788064131219,
+      "user": "gamanreddy.goona@gmail.com",
+      "query": "analyze security vulnerabilities in code",
+      "summary": "Autonomous graph execution completed successfully for query: \"analyze security vulnerabilities in code\".",
+      "actionsTaken": [
+        "1. Inspect available workspace tools",
+        "2. Execute contextual query resolution",
+        "3. Validate security and format response"
+      ],
+      "outcome": "success",
+      "tags": []
+    },
+    {
+      "id": "ep-1788063963949-a330f4",
+      "timestamp": 1788063963949,
+      "user": "gamanreddy.goona@gmail.com",
+      "query": "analyze security vulnerabilities in code",
+      "summary": "Autonomous graph execution completed successfully for query: \"analyze security vulnerabilities in code\".",
+      "actionsTaken": [
+        "1. Inspect available workspace tools",
+        "2. Execute contextual query resolution",
+        "3. Validate security and format response"
+      ],
+      "outcome": "success",
+      "tags": []
+    }
+  ],
+  "semantic": [
+    {
+      "id": "pref_os",
+      "category": "preference",
+      "subject": "workspace",
+      "predicate": "runs_on",
+      "object": "windows_11",
+      "confidence": 0.99,
+      "updatedAt": 1788063963928
+    },
+    {
+      "id": "pref_privacy",
+      "category": "rule",
+      "subject": "either_ai",
+      "predicate": "enforces",
+      "object": "zero_data_leaks",
+      "confidence": 1,
+      "updatedAt": 1788063963929
+    },
+    {
+      "id": "pref_models",
+      "category": "preference",
+      "subject": "default_model",
+      "predicate": "is",
+      "object": "gemini-3.5-flash",
+      "confidence": 0.95,
+      "updatedAt": 1788063963930
+    }
+  ],
+  "procedural": [
+    {
+      "id": "threat_intel_pipeline",
+      "name": "threat_intel_pipeline",
+      "triggerPattern": "threat.*|ransomware|onion|cve",
+      "steps": [
+        "1. Inspect AI Firewall boundaries",
+        "2. Probe Tor SOCKS5H service",
+        "3. Query CISA KEV & Abuse.ch IOCs",
+        "4. Perform HIBP k-anonymity check",
+        "5. Append SHA-256 block to Audit Ledger"
+      ],
+      "successCount": 1,
+      "failureCount": 0,
+      "lastExecuted": 1788063963931
+    }
+  ],
+  "savedAt": 1788064208586
+}
