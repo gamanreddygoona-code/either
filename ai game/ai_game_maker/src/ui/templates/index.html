@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Game Maker - Research Tool</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1 class="title">AI Game Maker</h1>
+                    <span class="subtitle">Video to Game Generation Research Tool</span>
+                </div>
+                <div class="header-right">
+                    <div class="status-indicator" id="systemStatus">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Ready</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Workspace -->
+            <div class="workspace">
+                <!-- Video Preview Section -->
+                <div class="section" id="videoSection">
+                    <div class="section-header">
+                        <h2>Video Input</h2>
+                        <div class="section-actions">
+                            <button class="btn btn-secondary" onclick="startCamera()">
+                                <span class="icon">📹</span> Start Camera
+                            </button>
+                            <button class="btn btn-secondary" onclick="stopCamera()">
+                                <span class="icon">⏹️</span> Stop
+                            </button>
+                            <button class="btn btn-primary" onclick="captureFrame()">
+                                <span class="icon">📸</span> Capture Frame
+                            </button>
+                        </div>
+                    </div>
+                    <div class="video-container">
+                        <video id="videoInput" autoplay muted playsinline class="video-feed"></video>
+                        <canvas id="videoCanvas" class="video-canvas"></canvas>
+                        <div class="video-overlay" id="videoOverlay">
+                            <div class="overlay-message">No video input</div>
+                        </div>
+                    </div>
+                    <div class="video-controls">
+                        <div class="control-group">
+                            <label>Resolution:</label>
+                            <select id="resolutionSelect" class="input-select">
+                                <option value="640x480">640x480</option>
+                                <option value="800x600">800x600</option>
+                                <option value="1024x768">1024x768</option>
+                                <option value="1280x720">1280x720</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>FPS:</label>
+                            <input type="number" id="fpsInput" value="10" min="1" max="60" class="input-number">
+                        </div>
+                        <div class="control-group">
+                            <label>Duration (s):</label>
+                            <input type="number" id="durationInput" value="5" min="1" max="60" class="input-number">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generation Section -->
+                <div class="section" id="generationSection">
+                    <div class="section-header">
+                        <h2>Game Generation</h2>
+                        <div class="section-actions">
+                            <button class="btn btn-primary" onclick="generateGame()" id="generateBtn">
+                                <span class="icon">✨</span> Generate Game
+                            </button>
+                            <button class="btn btn-secondary" onclick="stopGeneration()" id="stopBtn" disabled>
+                                <span class="icon">⏹️</span> Stop
+                            </button>
+                        </div>
+                    </div>
+                    <div class="generation-container">
+                        <div class="generation-status" id="generationStatus">
+                            <div class="status-icon">⏳</div>
+                            <div class="status-text">Ready to generate</div>
+                        </div>
+                        <div class="progress-bar" id="generationProgress">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="generation-stats" id="generationStats">
+                            <div class="stat-item">
+                                <span class="stat-label">Frames Processed:</span>
+                                <span class="stat-value" id="framesProcessed">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Objects Detected:</span>
+                                <span class="stat-value" id="objectsDetected">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Generation Time:</span>
+                                <span class="stat-value" id="generationTime">0s</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Game Preview Section -->
+                <div class="section" id="gameSection">
+                    <div class="section-header">
+                        <h2>Generated Game</h2>
+                        <div class="section-actions">
+                            <button class="btn btn-primary" onclick="runGame()" id="runGameBtn" disabled>
+                                <span class="icon">▶️</span> Run Game
+                            </button>
+                            <button class="btn btn-secondary" onclick="exportGame()" id="exportGameBtn" disabled>
+                                <span class="icon">💾</span> Export
+                            </button>
+                            <button class="btn btn-secondary" onclick="saveGame()" id="saveGameBtn" disabled>
+                                <span class="icon">📥</span> Save
+                            </button>
+                        </div>
+                    </div>
+                    <div class="game-preview-container">
+                        <div class="game-info" id="gameInfo">
+                            <div class="info-item">
+                                <span class="info-label">Title:</span>
+                                <span class="info-value" id="gameTitle">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Genre:</span>
+                                <span class="info-value" id="gameGenre">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Theme:</span>
+                                <span class="info-value" id="gameTheme">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Levels:</span>
+                                <span class="info-value" id="gameLevels">-</span>
+                            </div>
+                        </div>
+                        <div class="game-visualization" id="gameVisualization">
+                            <canvas id="gameCanvas" class="game-canvas"></canvas>
+                            <div class="visualization-overlay" id="visualizationOverlay">
+                                <div class="overlay-icon">🎮</div>
+                                <div class="overlay-text">No game generated yet</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar with Tabs -->
+        <div class="sidebar">
+            <div class="sidebar-tabs">
+                <button class="tab-btn active" data-tab="settings" onclick="switchTab('settings')">
+                    <span class="tab-icon">⚙️</span>
+                    <span class="tab-text">Settings</span>
+                </button>
+                <button class="tab-btn" data-tab="ai" onclick="switchTab('ai')">
+                    <span class="tab-icon">🤖</span>
+                    <span class="tab-text">AI Agents</span>
+                </button>
+                <button class="tab-btn" data-tab="research" onclick="switchTab('research')">
+                    <span class="tab-icon">🔬</span>
+                    <span class="tab-text">Research</span>
+                </button>
+                <button class="tab-btn" data-tab="history" onclick="switchTab('history')">
+                    <span class="tab-icon">📜</span>
+                    <span class="tab-text">History</span>
+                </button>
+            </div>
+            
+            <div class="tab-content" id="settingsTab">
+                <div class="tab-section">
+                    <h3>Generation Settings</h3>
+                    <div class="form-group">
+                        <label for="creativitySlider">Creativity Level</label>
+                        <input type="range" id="creativitySlider" min="0" max="1" step="0.1" value="0.7" class="slider">
+                        <span class="slider-value" id="creativityValue">0.7</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="numLevelsInput">Number of Levels</label>
+                        <input type="number" id="numLevelsInput" min="1" max="10" value="3" class="input-number">
+                    </div>
+                    <div class="form-group">
+                        <label for="gameGenreSelect">Preferred Genre</label>
+                        <select id="gameGenreSelect" class="input-select">
+                            <option value="">Auto-detect</option>
+                            <option value="platformer">Platformer</option>
+                            <option value="shooter">Shooter</option>
+                            <option value="puzzle">Puzzle</option>
+                            <option value="racing">Racing</option>
+                            <option value="adventure">Adventure</option>
+                            <option value="arcade">Arcade</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="tab-section">
+                    <h3>Video Processing</h3>
+                    <div class="form-group">
+                        <label for="videoSourceSelect">Video Source</label>
+                        <select id="videoSourceSelect" class="input-select">
+                            <option value="0">Webcam (Default)</option>
+                            <option value="1">Secondary Camera</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="frameSkipInput">Frame Skip</label>
+                        <input type="number" id="frameSkipInput" min="0" max="10" value="1" class="input-number">
+                    </div>
+                </div>
+                
+                <div class="tab-section">
+                    <button class="btn btn-block" onclick="applySettings()">
+                        <span class="icon">✓</span> Apply Settings
+                    </button>
+                </div>
+            </div>
+            
+            <div class="tab-content hidden" id="aiTab">
+                <div class="tab-section">
+                    <h3>AI Vision Status</h3>
+                    <div class="status-card" id="aiVisionStatus">
+                        <div class="status-icon">👁️</div>
+                        <div class="status-info">
+                            <div class="status-label">Model:</div>
+                            <div class="status-value">YOLOv8n</div>
+                        </div>
+                        <div class="status-info">
+                            <div class="status-label">Device:</div>
+                            <div class="status-value">CPU</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-section">
+                    <h3>Motion Agent</h3>
+                    <div class="stats-grid" id="motionStats">
+                        <div class="stat-card">
+                            <div class="stat-value" id="motionPatterns">0</div>
+                            <div class="stat-label">Patterns</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="motionHistory">0</div>
+                            <div class="stat-label">History Items</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="motionProfiles">0</div>
+                            <div class="stat-label">Profiles</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-section">
+                    <h3>Game Agent</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="gamesGenerated">0</div>
+                            <div class="stat-label">Games Generated</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="creativityLevel">0.7</div>
+                            <div class="stat-label">Creativity</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-content hidden" id="researchTab">
+                <div class="tab-section">
+                    <h3>Research Data</h3>
+                    <div class="form-group">
+                        <label for="researchFilename">Filename</label>
+                        <input type="text" id="researchFilename" value="research_data" class="input-text">
+                    </div>
+                    <button class="btn btn-block" onclick="exportResearchData()">
+                        <span class="icon">📤</span> Export Research Data
+                    </button>
+                </div>
+                
+                <div class="tab-section">
+                    <h3>Generation Statistics</h3>
+                    <div class="stats-list" id="generationStatsList">
+                        <div class="stats-item">
+                            <span class="stats-label">Total Generations:</span>
+                            <span class="stats-value" id="totalGenerations">0</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Avg. Time:</span>
+                            <span class="stats-value" id="avgGenerationTime">0s</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Avg. Frames:</span>
+                            <span class="stats-value" id="avgFramesProcessed">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-content hidden" id="historyTab">
+                <div class="tab-section">
+                    <h3>Generation History</h3>
+                    <div class="history-list" id="historyList">
+                        <div class="history-item">
+                            <div class="history-time">-</div>
+                            <div class="history-title">No generations yet</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-section">
+                    <h3>Saved Games</h3>
+                    <div class="saved-games-list" id="savedGamesList">
+                        <div class="saved-game-item">
+                            <div class="saved-game-name">-</div>
+                            <button class="btn btn-small" onclick="loadGame('')">Load</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal" id="exportModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Export Game</h3>
+                <button class="modal-close" onclick="closeModal('exportModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="exportFilename">Filename</label>
+                    <input type="text" id="exportFilename" value="game_design" class="input-text">
+                </div>
+                <div class="form-group">
+                    <label for="exportFormat">Format</label>
+                    <select id="exportFormat" class="input-select">
+                        <option value="json">JSON</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('exportModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmExport()">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="saveModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Save Game</h3>
+                <button class="modal-close" onclick="closeModal('saveModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="saveFilename">Filename</label>
+                    <input type="text" id="saveFilename" value="my_game" class="input-text">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('saveModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmSave()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

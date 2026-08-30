@@ -40,6 +40,7 @@ import { LocalFirstSyncEngine } from "./server/localFirst/syncEngine";
 import { rateLimiterMiddleware, detectPromptInjection, sanitizeAiOutput, logSecurityEvent, encryptSecret, decryptSecret } from "./server/security";
 import { PaymentTrackerEngine } from "./server/paymentTracker";
 import { requireAuth, requireAdmin, sanitizeAndValidateInputs, timingSafeCompare, signUserToken } from "./server/authMiddleware";
+import { authMiddleware } from "./server/middleware/auth";
 import { PlaywrightBrowserAgent } from "./server/browserAgent";
 import dns from "dns";
 
@@ -109,6 +110,8 @@ app.use((req, _res, next) => {
   }
   next();
 });
+
+app.use(authMiddleware);
 
 /* ================= real system telemetry ================= */
 
