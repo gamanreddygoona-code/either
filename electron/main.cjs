@@ -13,12 +13,32 @@ try {
   app.setPath('userData', customUserData);
 } catch (e) {}
 
+// Secure GPU configuration without disabling sandbox
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
-app.commandLine.appendSwitch('no-sandbox');
 
 let mainWindow = null;
 let tray = null;
 let trayUpdateInterval = null;
+
+// Allowlisted Origins for Either Desktop
+const ALLOWED_ORIGINS = [
+  'https://either-ai.vercel.app',
+  'https://littlebird-ai.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+function isOriginAllowed(targetUrl) {
+  try {
+    const parsed = new URL(targetUrl);
+    return ALLOWED_ORIGINS.some(allowed => {
+      const a = new URL(allowed);
+      return parsed.origin === a.origin;
+    });
+  } catch {
+    return false;
+  }
+}
 
 // Primary Cloud Server URL (Runs completely on our deployed cloud infrastructure)
 const CLOUD_URL = process.env.EITHER_CLOUD_URL || 'https://either-ai.vercel.app';
@@ -26,7 +46,6 @@ const LOCAL_PORT = process.env.PORT || 3000;
 const LOCAL_URL = `http://127.0.0.1:${LOCAL_PORT}`;
 
 // Determine target server URL:
-// Connect directly to our Sovereign Cloud Cluster with zero terminal required!
 let ACTIVE_SERVER_URL = CLOUD_URL;
 
 // IPC Handlers for native window controls
@@ -52,7 +71,9 @@ ipcMain.on('window-reload', () => {
 ipcMain.on('switch-server', (_event, target) => {
   if (mainWindow) {
     ACTIVE_SERVER_URL = target === 'local' ? LOCAL_URL : CLOUD_URL;
-    mainWindow.loadURL(`${ACTIVE_SERVER_URL}/?app=1&desktop=1`);
+    if (isOriginAllowed(ACTIVE_SERVER_URL)) {
+      mainWindow.loadURL(`${ACTIVE_SERVER_URL}/?app=1&desktop=1`);
+    }
   }
 });
 
@@ -60,7 +81,6 @@ async function resolveBestServerUrl() {
   if (process.env.ELECTRON_FORCE_LOCAL === '1') {
     return LOCAL_URL;
   }
-  // Default to our cloud server for instant zero-terminal user experience
   return CLOUD_URL;
 }
 
@@ -78,10 +98,12 @@ function createWindow() {
     title: 'Either — Sovereign AI Workspace',
     icon: appIcon,
     webPreferences: {
+      sandbox: true,
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
       spellcheck: false,
+      enableRemoteModule: false
     },
     titleBarStyle: 'default',
     autoHideMenuBar: true,
@@ -89,8 +111,27 @@ function createWindow() {
     center: true,
   });
 
+  // Inject strict Content Security Policy (CSP) headers
+  const { session } = require('electron');
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self' https://either-ai.vercel.app https://littlebird-ai.vercel.app http://127.0.0.1:3000 http://localhost:3000; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://accounts.google.com; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "font-src 'self' data: https://fonts.gstatic.com; " +
+          "img-src 'self' data: blob: https:; " +
+          "connect-src 'self' https://either-ai.vercel.app https://littlebird-ai.vercel.app http://127.0.0.1:3000 http://localhost:3000 https://api.binance.com https://*.googleapis.com https://api.github.com https://api.notion.com https://slack.com https://discord.com https://api.linear.app https://app.asana.com https://image.pollinations.ai; " +
+          "frame-src 'self' https://accounts.google.com https://github.com https://web.whatsapp.com;"
+        ]
+      }
+    });
+  });
+
   const appUrl = `${ACTIVE_SERVER_URL}/?app=1&desktop=1`;
-  console.log('[Either Desktop] Connecting to Sovereign Cloud Cluster:', appUrl);
+  console.log('[Either Desktop] Connecting securely to Sovereign Cluster:', appUrl);
   mainWindow.loadURL(appUrl);
 
   mainWindow.once('ready-to-show', () => {
@@ -100,19 +141,32 @@ function createWindow() {
     }
   });
 
-  // Handle load failure gracefully
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
-    console.warn('[Either Desktop] Load notification:', errorCode, errorDescription);
+  // Strict navigation guard
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    if (!isOriginAllowed(navigationUrl)) {
+      event.preventDefault();
+      console.warn('[Either Desktop Security] Blocked unallowed origin navigation:', navigationUrl);
+      if (navigationUrl.startsWith('http://') || navigationUrl.startsWith('https://')) {
+        shell.openExternal(navigationUrl);
+      }
+    }
   });
 
+  // Strict window open guard
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Open external links in system browser, keep app navigation inside
-    if (url.startsWith(CLOUD_URL) || url.startsWith(LOCAL_URL)) return { action: 'allow' };
-    if (url.startsWith('http')) {
+    if (isOriginAllowed(url)) {
+      return { action: 'allow' };
+    }
+    if (url.startsWith('http://') || url.startsWith('https://')) {
       shell.openExternal(url);
       return { action: 'deny' };
     }
-    return { action: 'allow' };
+    return { action: 'deny' };
+  });
+
+  // Handle load failure gracefully
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.warn('[Either Desktop] Load notification:', errorCode, errorDescription);
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });

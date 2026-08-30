@@ -29,6 +29,8 @@ import { ThreatIntelEngine } from "./server/threatIntel";
 import { MCPServer } from "./server/mcpServer";
 import { rateLimiterMiddleware, detectPromptInjection, sanitizeAiOutput, logSecurityEvent, encryptSecret, decryptSecret } from "./server/security";
 import { PaymentTrackerEngine } from "./server/paymentTracker";
+import { requireAuth, requireAdmin, sanitizeAndValidateInputs, timingSafeCompare, signUserToken } from "./server/authMiddleware";
+import { PlaywrightBrowserAgent } from "./server/browserAgent";
 import dns from "dns";
 
 dotenv.config();
@@ -44,23 +46,27 @@ const isInsideProject = (p: string) => {
   const rel = path.relative(PROJECT_ROOT, path.resolve(p));
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 };
-const adminOk = (req: any) =>
-  Boolean(process.env.EITHER_ADMIN_TOKEN) && req.headers["x-lb-token"] === process.env.EITHER_ADMIN_TOKEN;
+const adminOk = (req: any) => {
+  const token = req.headers["x-lb-token"] as string;
+  const expected = process.env.EITHER_ADMIN_TOKEN || "";
+  return Boolean(expected) && timingSafeCompare(token, expected);
+};
 
-// CORS & HTTPS headers
+// Strict CORS: Restrict exclusively to exact allowlisted domains (no wildcards)
+const STRICT_ALLOWED_ORIGINS = [
+  "https://either-ai.vercel.app",
+  "https://littlebird-ai.vercel.app",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000"
+];
+
 app.use((req, res, next) => {
   const origin = req.headers.origin as string;
-  const allowedOrigins = [
-    "https://either-ai.vercel.app",
-    "https://littlebird-ai.vercel.app",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-  ];
-  if (origin && (allowedOrigins.includes(origin) || origin.endsWith(".vercel.app"))) {
+  if (origin && STRICT_ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-lb-token, x-user-email");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-lb-token, x-auth-token, x-user-email");
   }
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
@@ -68,7 +74,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
+app.use(sanitizeAndValidateInputs);
 app.use(rateLimiterMiddleware);
 app.use((req, _res, next) => {
   if (req.url === "/api" && req.headers["x-matched-path"]) {
@@ -1026,10 +1033,23 @@ app.get("/api/user/usage", (_req, res) => {
 /* ================= auth ================= */
 
 app.get("/api/auth/me", (_req, res) => {
-  const usage = getOrCreateUsage();
+  const usage = getTokenUsage();
+  const token = signUserToken({
+    userId: "gaman-sai-01",
+    email: currentUser.email || "gamanreddy.goona@gmail.com",
+    name: currentUser.name || "Gaman Sai",
+    role: "admin"
+  });
+
   res.json({
     user: {
-      ...currentUser,
+      id: "gaman-sai-01",
+      name: currentUser.name,
+      email: currentUser.email,
+      avatarUrl: currentUser.avatarUrl,
+      plan: currentUser.plan,
+      isAuthenticated: currentUser.isAuthenticated,
+      token,
       tokenUsage: {
         used: usage.used,
         limit: usage.limit,
@@ -1043,13 +1063,21 @@ app.get("/api/auth/me", (_req, res) => {
 });
 
 app.post("/api/auth/login", (req, res) => {
-  const { name, email, avatarUrl } = req.body;
-  if (name) currentUser.name = name;
-  if (email) currentUser.email = email;
-  if (avatarUrl) currentUser.avatarUrl = avatarUrl;
+  const { name, email, avatarUrl } = req.body || {};
+  if (name) currentUser.name = String(name).slice(0, 100);
+  if (email) currentUser.email = String(email).slice(0, 120);
+  if (avatarUrl) currentUser.avatarUrl = String(avatarUrl).slice(0, 500);
   currentUser.isAuthenticated = true;
-  pushLog("success", "AuthSession", currentUser.email || "local", `Session started for ${currentUser.name}.`);
-  res.json({ success: true, user: currentUser });
+
+  const token = signUserToken({
+    userId: "gaman-sai-01",
+    email: currentUser.email || "gamanreddy.goona@gmail.com",
+    name: currentUser.name || "Gaman Sai",
+    role: "admin"
+  });
+
+  pushLog("success", "AuthSession", currentUser.email || "local", `JWT Session started for ${currentUser.name}.`);
+  res.json({ success: true, user: currentUser, token });
 });
 
 /* ================= firebase (honest status) ================= */
@@ -1901,22 +1929,32 @@ app.get("/api/trading/portfolio", (_req, res) => {
   res.json({ success: true, portfolio: tradingState.portfolio });
 });
 
-app.post("/api/trading/order", async (req, res) => {
-  const { symbol, side, amount, leverage, price, stopLoss, takeProfit, type } = req.body;
+app.post("/api/trading/order", requireAuth, async (req, res) => {
+  const { symbol, side, amount, leverage, price, stopLoss, takeProfit, type } = req.body || {};
   if (!symbol || !side || !amount) {
     return res.status(400).json({ success: false, error: "Symbol, side, and amount are required." });
   }
 
-  let executionPrice = price;
-  if (!executionPrice) {
-    const ticker = await fetchLiveTicker(symbol);
+  const numAmount = Number(amount);
+  if (isNaN(numAmount) || numAmount <= 0 || !isFinite(numAmount)) {
+    return res.status(400).json({ success: false, error: "Amount must be a positive finite number." });
+  }
+
+  const cleanSide = String(side).toUpperCase();
+  if (cleanSide !== "BUY" && cleanSide !== "SELL") {
+    return res.status(400).json({ success: false, error: "Side must be BUY or SELL." });
+  }
+
+  let executionPrice = price ? Number(price) : undefined;
+  if (!executionPrice || isNaN(executionPrice)) {
+    const ticker = await fetchLiveTicker(String(symbol).toUpperCase());
     executionPrice = ticker.price;
   }
 
   const result = tradingState.placeOrder({
-    symbol,
-    side,
-    amount: Number(amount),
+    symbol: String(symbol).toUpperCase().slice(0, 10),
+    side: cleanSide,
+    amount: numAmount,
     leverage: Number(leverage) || 1,
     price: executionPrice,
     stopLoss: stopLoss ? Number(stopLoss) : undefined,
@@ -1925,26 +1963,26 @@ app.post("/api/trading/order", async (req, res) => {
   });
 
   if (!result.success) {
-    pushLog("error", "TradeExecution", symbol.toUpperCase(), `Order rejected: ${result.error}`);
+    pushLog("error", "TradeExecution", String(symbol).toUpperCase(), `Order rejected: ${result.error}`);
     return res.status(400).json(result);
   }
 
-  pushLog("success", "TradeExecution", symbol.toUpperCase(), `Filled ${side} order: ${amount} ${symbol.toUpperCase()} @ $${executionPrice}.`);
+  pushLog("success", "TradeExecution", String(symbol).toUpperCase(), `Filled ${cleanSide} order: ${numAmount} ${String(symbol).toUpperCase()} @ $${executionPrice}.`);
   res.json(result);
 });
 
-app.post("/api/trading/positions/close", (req, res) => {
-  const { positionId } = req.body;
+app.post("/api/trading/positions/close", requireAuth, (req, res) => {
+  const { positionId } = req.body || {};
   if (!positionId) return res.status(400).json({ success: false, error: "positionId is required." });
 
-  const result = tradingState.closePosition(positionId, "FILLED", "Manual position close via UI");
+  const result = tradingState.closePosition(String(positionId), "FILLED", "Manual position close via UI");
   if (!result.success) return res.status(400).json(result);
 
-  pushLog("info", "TradeExecution", positionId, `Position closed. Realized PnL: $${result.pnl}.`);
+  pushLog("info", "TradeExecution", String(positionId), `Position closed. Realized PnL: $${result.pnl}.`);
   res.json({ ...result, portfolio: tradingState.portfolio });
 });
 
-app.post("/api/trading/portfolio/reset", (_req, res) => {
+app.post("/api/trading/portfolio/reset", requireAuth, (_req, res) => {
   tradingState.resetPortfolio();
   pushLog("info", "PortfolioManager", "Paper Trading", "Paper portfolio reset to $10,000 equity.");
   res.json({ success: true, portfolio: tradingState.portfolio });
@@ -2052,10 +2090,20 @@ function needsClarification(input: string): string | null {
   return null;
 }
 
-app.post("/api/sandbox/exec", async (req, res) => {
+app.post("/api/sandbox/exec", requireAuth, async (req, res) => {
   const { command, context } = req.body || {};
   const raw = (command || "").toString().trim();
   if (!raw) return res.status(400).json({ error: "command required" });
+
+  // Disallow shell chaining operators to prevent command injection
+  const chainingRegex = /[&|;`$]/;
+  if (chainingRegex.test(raw)) {
+    pushLog("error", "WindowsProtection", "BLOCK_INJECTION", `Blocked command chaining operator in: "${raw}"`);
+    return res.status(400).json({
+      error: "Command chaining and shell metacharacters (&, |, ;, \`, $) are prohibited in sandbox mode.",
+      output: "BLOCKED by Windows Protection: Command chaining metacharacters detected."
+    });
+  }
 
   // Ask if needed before running
   const fullInput = context ? `${raw} ${context}` : raw;
@@ -3690,113 +3738,52 @@ app.get(["/auth/notion", "/auth/notion/callback"], (req, res) => {
 </html>`);
 });
 
-/* ================= Autonomous Browser AI Agent Engine ================= */
+/* ================= Autonomous Browser AI Agent Engine (Playwright Headless) ================= */
 
 app.post("/api/browser/agent/execute", async (req, res) => {
   const { url, goal, mode } = req.body || {};
   const targetUrl = url || "https://linear.app/settings/api";
   const userGoal = goal || "Inspect page and extract developer tokens or summary.";
 
-  pushLog("info", "BrowserAgent", "Headless", `Navigating to ${targetUrl} with goal: "${userGoal}"`);
-
-  let fetchedText = "";
-  let pageTitle = "";
-  let statusCode = 200;
-  const startTime = Date.now();
+  pushLog("info", "BrowserAgent", "Playwright", `Launching headless Chromium for ${targetUrl} — Goal: "${userGoal}"`);
 
   try {
-    const fetchRes = await fetch(targetUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-      },
-      signal: AbortSignal.timeout(10000)
-    });
-    statusCode = fetchRes.status;
-    const html = await fetchRes.text();
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    pageTitle = titleMatch ? titleMatch[1].trim() : targetUrl;
-    fetchedText = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-                      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-                      .replace(/<[^>]+>/g, " ")
-                      .replace(/\s+/g, " ")
-                      .trim()
-                      .slice(0, 3000);
-  } catch (err: any) {
-    console.warn("Direct fetch warning for browser agent:", err.message);
-    fetchedText = `Live endpoint inspection for ${targetUrl}`;
-  }
+    const browserAgent = PlaywrightBrowserAgent.getInstance();
+    const result = await browserAgent.executeTask(targetUrl, userGoal);
 
-  const durationMs = Date.now() - startTime;
-
-  const agentPrompt = `You are Either AI's Autonomous Browser AI Agent. You are navigating "${targetUrl}" (HTTP ${statusCode}, latency ${durationMs}ms, Title: "${pageTitle}").
-Target Goal: "${userGoal}"
-Real Page Content Extracted:
-"""
-${fetchedText}
-"""
-
-Produce a valid JSON object ONLY (no markdown code blocks, no trailing commas) with this schema:
-{
-  "steps": [
-    { "time": "00:01", "type": "NAVIGATE", "title": "...", "detail": "...", "status": "completed" },
-    { "time": "00:02", "type": "DOM_SCAN", "title": "...", "detail": "...", "status": "completed" },
-    { "time": "00:03", "type": "REASONING", "title": "...", "detail": "...", "status": "completed" },
-    { "time": "00:04", "type": "EXECUTE", "title": "...", "detail": "...", "status": "completed" },
-    { "time": "00:05", "type": "EXTRACT", "title": "...", "detail": "...", "status": "completed" }
-  ],
-  "summary": "Detailed executive summary of what the browser agent discovered on the page, action outcomes, and security audit.",
-  "extractedToken": {
-    "service": "Linear",
-    "key": "API_KEY",
-    "value": "lin_api_..."
-  }
-}`;
-
-  try {
-    const rawJson = await generateWithRetry(agentPrompt, {
-      systemInstruction: "You are an autonomous browser automation agent. Always output valid parseable JSON strictly matching the schema."
-    });
-    
-    let parsed: any = null;
-    try {
-      const cleaned = rawJson.replace(/```json/gi, "").replace(/```/g, "").trim();
-      parsed = JSON.parse(cleaned);
-    } catch (pe) {
-      const match = rawJson.match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
-    }
-
-    if (parsed && Array.isArray(parsed.steps)) {
-      pushLog("success", "BrowserAgent", "Execution", `Completed autonomous task on ${targetUrl}`);
+    if (result.success) {
+      pushLog("success", "BrowserAgent", "Playwright", `Completed task on ${targetUrl} (${result.durationMs}ms)`);
       return res.json({
         success: true,
-        steps: parsed.steps,
-        summary: parsed.summary || `Autonomous browser agent navigated ${targetUrl} successfully.`,
-        extractedToken: parsed.extractedToken || null,
+        steps: result.steps,
+        summary: result.summary,
+        extractedTokens: result.extractedTokens,
         url: targetUrl,
-        latency: `${durationMs}ms`
+        pageTitle: result.pageTitle,
+        latency: `${result.durationMs}ms`,
+        screenshotPath: result.screenshotPath
+      });
+    } else {
+      pushLog("warn", "BrowserAgent", "Playwright", `Execution warning: ${result.error}`);
+      return res.json({
+        success: false,
+        steps: result.steps,
+        summary: result.summary,
+        error: result.error,
+        url: targetUrl,
+        latency: `${result.durationMs}ms`
       });
     }
-  } catch (e: any) {
-    console.error("Browser agent LLM error:", e);
+  } catch (err: any) {
+    pushLog("error", "BrowserAgent", "Playwright", `Browser error: ${err.message}`);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Playwright execution failed",
+      steps: [
+        { time: "00:01", type: "ERROR", title: "Browser Engine Error", detail: err.message, status: "failed" }
+      ]
+    });
   }
-
-  // Robust live fallback steps if AI fails
-  res.json({
-    success: true,
-    steps: [
-      { time: "00:01", type: "NAVIGATE", title: `Navigated to ${targetUrl}`, detail: `HTTP ${statusCode} in ${durationMs}ms. Page Title: "${pageTitle}"`, status: "completed" },
-      { time: "00:02", type: "DOM_SCAN", title: "DOM & Element Hierarchy Scanned", detail: `Inspected layout structure, authentication forms, and interactive buttons.`, status: "completed" },
-      { time: "00:03", type: "REASONING", title: "Autonomous Decision Formulation", detail: `Target goal: "${userGoal}". Formulated execution plan with zero human intervention.`, status: "completed" },
-      { time: "00:04", type: "EXECUTE", title: "Action Handshake Executed", detail: `Dispatched DOM interactions, resolved permissions, and completed workflow.`, status: "completed" },
-      { time: "00:05", type: "EXTRACT", title: "Target Payload Extracted", detail: `Successfully retrieved metadata and verified session telemetry.`, status: "completed" },
-    ],
-    summary: `Autonomous Browser Agent successfully completed execution on ${targetUrl}.\n• Page: ${pageTitle}\n• Latency: ${durationMs}ms\n• Status: 100% Verified & Active`,
-    extractedToken: targetUrl.includes("linear") ? { service: "Linear", key: "LINEAR_API_KEY", value: "lin_api_live_" + Math.random().toString(36).slice(2, 12) } : null,
-    url: targetUrl,
-    latency: `${durationMs}ms`
-  });
 });
 
 app.post("/api/browser/agent/save-token", (req, res) => {
