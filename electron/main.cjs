@@ -13,7 +13,8 @@ try {
   app.setPath('userData', customUserData);
 } catch (e) {}
 
-// Secure GPU configuration without disabling sandbox
+// Secure Sandbox & GPU configuration
+app.commandLine.appendSwitch('enable-sandbox');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 
 let mainWindow = null;
@@ -22,10 +23,19 @@ let trayUpdateInterval = null;
 
 // Allowlisted Origins for Either Desktop
 const ALLOWED_ORIGINS = [
+  'http://127.0.0.1:3000',
+  'http://localhost:3000',
   'https://either-ai.vercel.app',
   'https://littlebird-ai.vercel.app',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000'
+  'https://accounts.google.com',
+  'https://github.com',
+  'https://api.github.com',
+  'https://notion.so',
+  'https://api.notion.com',
+  'https://slack.com',
+  'https://api.slack.com',
+  'https://discord.com',
+  'https://api.discord.com'
 ];
 
 function isOriginAllowed(targetUrl) {

@@ -139,6 +139,15 @@ export const DarkWebResearchView: React.FC = () => {
           </div>
         </div>
 
+        {/* Experimental Feature Banner */}
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-2.5 text-xs flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold bg-amber-200 text-amber-900 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md">Notice</span>
+            <span>This feature is experimental and queries live public threat feeds (CISA KEV, HIBP k-anonymity, Ahmia .onion gateway).</span>
+          </div>
+          <span className="text-[10px] font-mono text-amber-800">Tor/Clearnet Gateway Active</span>
+        </div>
+
         {/* Real Architecture Visual Banner matching user diagram */}
         <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 text-stone-300 shadow-md">
           <div className="text-[11px] font-mono text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">

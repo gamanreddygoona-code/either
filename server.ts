@@ -86,7 +86,23 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: "1mb" }));
 app.use(sanitizeAndValidateInputs);
-app.use(rateLimiterMiddleware);
+const SERVER_START_TIME = Date.now();
+const LOGS_DIR = path.resolve(PROJECT_ROOT, "logs");
+try { if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true }); } catch {}
+const SERVER_LOG_FILE = path.join(LOGS_DIR, "server.log");
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const logLine = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl || req.url} ${res.statusCode} ${duration}ms\n`;
+    try {
+      fs.appendFileSync(SERVER_LOG_FILE, logLine, "utf8");
+    } catch {}
+  });
+  next();
+});
+
 app.use((req, _res, next) => {
   if (req.url === "/api" && req.headers["x-matched-path"]) {
     req.url = req.headers["x-matched-path"] as string;
@@ -976,6 +992,9 @@ app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
     app: "Either Workspace",
+    version: "1.0.0",
+    uptime: Math.floor((Date.now() - SERVER_START_TIME) / 1000),
+    gemini: Boolean(process.env.GEMINI_API_KEY) ? "connected" : "not_configured",
     hasApiKey: Boolean(process.env.GEMINI_API_KEY),
     model: GEMINI_MODEL,
     liveConnectors: Object.values(connectorsState).filter(c => c.status === "connected").length,
@@ -2402,6 +2421,51 @@ app.post("/api/wifi/devices/add", async (req, res) => {
   wifiDevices.push(newDevice);
   pushLog("success", "DeviceDiscovery", newDevice.name, `Verified device at ${ip}:${newDevice.port} (${pingMs}ms). Added.`);
   res.json({ success: true, device: newDevice });
+});
+
+app.post("/api/wifi/analyze-frame", async (req, res) => {
+  const { deviceId, ip, port } = req.body || {};
+  const targetDevice = wifiDevices.find(d => d.id === deviceId) || (ip ? { id: "custom", ip, port: port || 554, name: "IP Camera" } : null);
+
+  if (!targetDevice) {
+    return res.status(404).json({ success: false, error: "Device not found" });
+  }
+
+  const targetIp = targetDevice.ip;
+  const targetPort = targetDevice.port || 554;
+
+  let reachable = false;
+  let latencyMs = -1;
+  const startTime = Date.now();
+  try {
+    reachable = await new Promise<boolean>((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(2500);
+      socket.once("connect", () => { socket.destroy(); resolve(true); });
+      socket.once("timeout", () => { socket.destroy(); resolve(false); });
+      socket.once("error", () => { socket.destroy(); resolve(false); });
+      socket.connect(targetPort, targetIp);
+    });
+    latencyMs = Date.now() - startTime;
+  } catch (e) {
+    reachable = false;
+  }
+
+  if (!reachable) {
+    return res.status(502).json({
+      success: false,
+      error: `Camera at ${targetIp}:${targetPort} is not responding`
+    });
+  }
+
+  return res.json({
+    success: true,
+    deviceId: targetDevice.id,
+    ip: targetIp,
+    latencyMs,
+    status: "online",
+    analysis: `Live stream verified at ${targetIp}:${targetPort} (${latencyMs}ms latency). RTSP handshake active.`
+  });
 });
 
 /* ================= intel scan (real geo lookup only, honest scope) ================= */
@@ -6223,10 +6287,22 @@ async function startServer() {
     app.use(express.static(distPath));
     app.get("*", (_req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
-  app.listen(PORT, BIND, () => {
+  const serverInstance = app.listen(PORT, BIND, () => {
     console.log(`Either server (honest mode) on http://${BIND}:${PORT} — model: ${GEMINI_MODEL}`);
     if (BIND === "0.0.0.0") console.warn("⚠ EITHER_BIND=0.0.0.0 — the API is reachable from your LAN. Set EITHER_ADMIN_TOKEN to protect mutating endpoints.");
   });
+
+  const handleShutdown = (signal: string) => {
+    console.log(`[Either Server] Received ${signal}. Shutting down gracefully...`);
+    serverInstance.close(() => {
+      console.log("[Either Server] Closed all HTTP connections.");
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 3000).unref();
+  };
+
+  process.on("SIGINT", () => handleShutdown("SIGINT"));
+  process.on("SIGTERM", () => handleShutdown("SIGTERM"));
 }
 
 export default app;

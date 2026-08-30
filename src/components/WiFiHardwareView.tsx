@@ -73,14 +73,27 @@ export const WiFiHardwareView: React.FC = () => {
     }
   };
 
-  const handleAnalyzeSnapshot = (dev: WiFiDevice) => {
+  const handleAnalyzeSnapshot = async (dev: WiFiDevice) => {
     setAnalyzingCamId(dev.id);
     setAnalysisResult(null);
 
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/wifi/analyze-frame", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId: dev.id, ip: dev.ip, port: dev.port })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnalysisResult(data.analysis || `Stream verified for ${dev.name} (${dev.ip}): Active with ${data.latencyMs}ms latency.`);
+      } else {
+        setAnalysisResult(`Error: ${data.error || `Camera at ${dev.ip} is not responding`}`);
+      }
+    } catch (err: any) {
+      setAnalysisResult(`Connection Error: Camera at ${dev.ip} is not responding (${err.message || 'network timeout'})`);
+    } finally {
       setAnalyzingCamId(null);
-      setAnalysisResult(`Security Frame Analysis for ${dev.name} (${dev.location}): Area clear. No unauthorized motion detected. Camera latency: 4ms. Stream bitrate: 4.2 Mbps.`);
-    }, 1200);
+    }
   };
 
   const cameras = devices.filter(d => d.type === "cctv-rtsp");
