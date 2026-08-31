@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+projects/_uploads/
+temp/
+research_data/
+generated_games/
+*.chk
+*.log

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Genie World — Project Genie</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0e14;color:#fff;font-family:Inter,system-ui;overflow:hidden}
+#hud{position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.6);padding:8px 10px;border-radius:8px;font-size:12px;z-index:10}
+#worldInfo{position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.6);padding:8px 10px;border-radius:8px;font-size:11px;z-index:10}
+canvas{display:block}
+#help{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);padding:6px 10px;border-radius:999px;font-size:11px}
+</style>
+</head>
+<body>
+<div id="hud">Genie World • <span id="projName">loading…</span> • <span id="biome"></span></div>
+<div id="worldInfo">chunks <span id="chunkCount">0</span> • <span id="coords"></span></div>
+<canvas id="c"></canvas>
+<div id="help">WASD / Arrows move • Space jump • R reset • ESC menu • Project Genie-style infinite chunks</div>
+<script>
+const TILE=32, CHUNK=16;
+let world=null, pid = new URLSearchParams(location.search).get('pid') || localStorage.getItem('aiGameMaker_currentProject');
+let cam={x:0,y:0}, player={x:64,y:64,w:28,h:44,vx:0,vy:0,grounded:false}, keys={};
+let W=160,H=40;
+async function load(){
+  if(pid){
+    try{ const r=await fetch(`/api/projects/${pid}/world`); if(r.ok) world=await r.json(); }catch{}
+  }
+  if(!world){
+    // fallback: last project
+    const r=await fetch('/api/projects'); const j=await r.json();
+    if(j.projects[0]){ pid=j.projects[0].project_id; const w=await fetch(`/api/projects/${pid}/world`); if(w.ok) world=await w.json(); }
+  }
+  if(!world) world={tilemap:{chunks:{}},size_tiles:[160,40],spawn:[64,64],meta:{biome:'city'}};
+  W=world.size_tiles[0]; H=world.size_tiles[1];
+  player.x=world.spawn[0]||64; player.y=world.spawn[1]||64;
+  document.getElementById('projName').textContent=pid||'genie-demo';
+  document.getElementById('biome').textContent=world.meta.biome||'city';
+  document.getElementById('chunkCount').textContent=Object.keys(world.tilemap.chunks).length;
+  loop();
+}
+function isSolid(wx,wy){
+  const tx=Math.floor(wx/TILE), ty=Math.floor(wy/TILE);
+  const cx=Math.floor(tx/CHUNK), cy=Math.floor(ty/CHUNK);
+  const key=`${cx}_${cy}`; const ch=world.tilemap.chunks[key];
+  if(!ch) return false;
+  const lx=tx-cx*CHUNK, ly=ty-cy*CHUNK;
+  return ch.tiles[ly][lx].type!==0;
+}
+function swept(x,y,w,h,vx,vy){
+  let nx=x+vx, ny=y+vy, hx=false, hy=false;
+  let edgeX = vx>0? nx+w : nx;
+  for(let py of [y+2, y+h/2, y+h-2]) if(isSolid(edgeX,py)){ hx=true; const tx=Math.floor(edgeX/TILE); nx = vx>0? tx*TILE - w -0.01 : (tx+1)*TILE +0.01; break; }
+  let edgeY = vy>0? ny+h : ny;
+  for(let px of [nx+2, nx+w/2, nx+w-2]) if(isSolid(px,edgeY)){ hy=true; const ty=Math.floor(edgeY/TILE); ny = vy>0? ty*TILE - h -0.01 : (ty+1)*TILE +0.01; break; }
+  return [nx,ny,hx,hy];
+}
+window.addEventListener('keydown',e=>{ keys[e.code]=true; if(e.code==='Space') keys['Space']=true; });
+window.addEventListener('keyup',e=>{ keys[e.code]=false; if(e.code==='Space') keys['Space']=false; });
+const canvas=document.getElementById('c'), ctx=canvas.getContext('2d');
+function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; }
+addEventListener('resize', resize); resize();
+function update(dt){
+  const speed=4.5;
+  let vx=0; if(keys['ArrowLeft']||keys['KeyA']) vx=-speed; if(keys['ArrowRight']||keys['KeyD']) vx=speed;
+  if((keys['ArrowUp']||keys['KeyW']||keys['Space']) && player.grounded){ player.vy=-12; player.grounded=false; }
+  player.vy+=0.85; // gravity
+  let [nx,ny,hx,hy]=swept(player.x,player.y,player.w,player.h, vx, player.vy);
+  if(hx) vx=0;
+  if(hy){ if(player.vy>0) player.grounded=true; player.vy=0; } else player.grounded=false;
+  player.x=nx; player.y=ny;
+  // clamp world
+  player.x=Math.max(0, Math.min(player.x, W*TILE - player.w));
+  player.y=Math.max(0, Math.min(player.y, H*TILE - player.h));
+  cam.x = player.x - canvas.width/2 + player.w/2;
+  cam.y = player.y - canvas.height/2 + player.h/2;
+  cam.x=Math.max(0, Math.min(cam.x, W*TILE - canvas.width));
+  cam.y=Math.max(0, Math.min(cam.y, H*TILE - canvas.height));
+  document.getElementById('coords').textContent=`${Math.floor(player.x)},${Math.floor(player.y)} cam ${Math.floor(cam.x)},${Math.floor(cam.y)}`;
+  if(keys['KeyR']){ player.x=world.spawn[0]; player.y=world.spawn[1]; player.vx=0; player.vy=0; }
+}
+function draw(){
+  ctx.fillStyle='#0f141e'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  // draw chunks culled
+  const minCX=Math.floor(cam.x/(CHUNK*TILE)), maxCX=Math.floor((cam.x+canvas.width)/(CHUNK*TILE));
+  const minCY=Math.floor(cam.y/(CHUNK*TILE)), maxCY=Math.floor((cam.y+canvas.height)/(CHUNK*TILE));
+  for(let cx=minCX-1;cx<=maxCX+1;cx++) for(let cy=minCY-1;cy<=maxCY+1;cy++){
+    const ch=world.tilemap.chunks[`${cx}_${cy}`]; if(!ch) continue;
+    for(let ly=0;ly<CHUNK;ly++) for(let lx=0;lx<CHUNK;lx++){
+      const td=ch.tiles[ly][lx]; if(td.type===0) continue;
+      const wx=(cx*CHUNK+lx)*TILE, wy=(cy*CHUNK+ly)*TILE;
+      const sx=wx-cam.x, sy=wy-cam.y;
+      if(sx<-TILE||sy<-TILE||sx>canvas.width||sy>canvas.height) continue;
+      const col={1:'#1e2e1e',2:'#2d7d46',3:'#2a2a3a',4:'#6b1a1a'}[td.type]||'#555';
+      ctx.fillStyle=col; ctx.fillRect(sx,sy,TILE,TILE);
+      ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.strokeRect(sx,sy,TILE,TILE);
+    }
+    // chunk border
+    const ox=cx*CHUNK*TILE - cam.x, oy=cy*CHUNK*TILE - cam.y;
+    ctx.strokeStyle='rgba(100,120,255,0.08)'; ctx.strokeRect(ox,oy,CHUNK*TILE,CHUNK*TILE);
+  }
+  // player
+  const sx=player.x-cam.x, sy=player.y-cam.y;
+  ctx.fillStyle='#3b82f6'; ctx.fillRect(sx,sy,player.w,player.h);
+  ctx.strokeStyle='#fff'; ctx.strokeRect(sx,sy,player.w,player.h);
+  // eyes
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(sx+8,sy+10,4,0,Math.PI*2); ctx.arc(sx+player.w-8,sy+10,4,0,Math.PI*2); ctx.fill();
+}
+let last=performance.now();
+function loop(){
+  const now=performance.now(); const dt=Math.min(0.05,(now-last)/1000); last=now;
+  update(dt); draw(); requestAnimationFrame(loop);
+}
+load();
+</script>
+</body>
+</html>

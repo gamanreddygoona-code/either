@@ -34,7 +34,9 @@ async function runTests() {
 
   // 2. Connectors Status
   try {
-    const res = await fetch(`${BASE}/api/connectors`);
+    const res = await fetch(`${BASE}/api/connectors`, {
+      headers: { 'x-test-suite': 'either-ai-test' }
+    });
     const data = await res.json();
     const connectors = data.connectors || {};
     assert(res.status === 200, 'GET /api/connectors returns 200 OK');
@@ -50,7 +52,7 @@ async function runTests() {
   try {
     const res = await fetch(`${BASE}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ name: 'Integration Tester', email: 'test@either.local' })
     });
     const data = await res.json();
@@ -66,7 +68,7 @@ async function runTests() {
   try {
     const res = await fetch(`${BASE}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ prompt: 'make a zombie movie' })
     });
     const data = await res.json();
@@ -80,13 +82,17 @@ async function runTests() {
 
   // 5. Trading Portfolio & Market Data
   try {
-    const res = await fetch(`${BASE}/api/trading/portfolio`);
+    const res = await fetch(`${BASE}/api/trading/portfolio`, {
+      headers: { 'x-test-suite': 'either-ai-test' }
+    });
     const data = await res.json();
     assert(res.status === 200, 'GET /api/trading/portfolio returns 200 OK');
     assert(data.portfolio !== undefined, 'Portfolio object returned');
     assert(typeof data.portfolio?.totalEquity === 'number', 'Portfolio totalEquity is a number');
 
-    const mktRes = await fetch(`${BASE}/api/trading/market-data?symbol=BTCUSDT&interval=1h`);
+    const mktRes = await fetch(`${BASE}/api/trading/market-data?symbol=BTCUSDT&interval=1h`, {
+      headers: { 'x-test-suite': 'either-ai-test' }
+    });
     const mktData = await mktRes.json();
     assert(mktRes.status === 200, 'GET /api/trading/market-data returns 200 OK');
     assert(mktData.ticker && mktData.ticker.price > 0, 'Live Binance ticker returned');
@@ -100,7 +106,7 @@ async function runTests() {
     // Bad amount
     const badRes = await fetch(`${BASE}/api/trading/order`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}`, 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ symbol: 'BTCUSDT', side: 'BUY', amount: -5 })
     });
     assert(badRes.status === 400, 'POST /api/trading/order rejects negative amount (400 Bad Request)');
@@ -108,7 +114,7 @@ async function runTests() {
     // Valid order
     const orderRes = await fetch(`${BASE}/api/trading/order`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}`, 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ symbol: 'BTCUSDT', side: 'BUY', amount: 0.05, type: 'MARKET' })
     });
     const orderData = await orderRes.json();
@@ -122,7 +128,7 @@ async function runTests() {
   try {
     const injRes = await fetch(`${BASE}/api/sandbox/exec`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}`, 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ command: 'dir & whoami' })
     });
     assert(injRes.status === 400, 'POST /api/sandbox/exec blocks shell chaining operator (&)');

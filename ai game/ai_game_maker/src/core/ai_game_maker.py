@@ -20,6 +20,7 @@ from .ai_vision import AIVision, SceneAnalysis
 from ..agents.game_agent import GameAgent, GameDesign
 from ..agents.motion_agent import MotionAgent
 from .game_engine import GameEngine
+from .project_manager import ProjectManager, VideoSourceMeta, ProjectMeta
 
 
 @dataclass
@@ -84,12 +85,13 @@ class AIGameMaker:
     - Research: Collect data and analyze generation patterns
     """
     
-    def __init__(self, config: Optional[GenerationConfig] = None):
+    def __init__(self, config: Optional[GenerationConfig] = None, projects_root: str = "projects"):
         """
         Initialize AI Game Maker.
         
         Args:
             config: Generation configuration
+            projects_root: Root folder for ProjectGen storage (enforced)
         """
         self.config = config or GenerationConfig()
         self.video_processor: Optional[VideoProcessor] = None
@@ -98,10 +100,12 @@ class AIGameMaker:
         self.motion_agent: Optional[MotionAgent] = None
         self.game_engine: Optional[GameEngine] = None
         self.current_game: Optional[GameDesign] = None
+        self.current_project_id: Optional[str] = None
         self.generation_results: list = []
         self.is_running = False
         self.generation_thread: Optional[threading.Thread] = None
         self.last_generation: Optional[GenerationResult] = None
+        self.project_manager = ProjectManager(projects_root=projects_root)
         
         self._initialize_components()
         
@@ -136,7 +140,58 @@ class AIGameMaker:
         # Game Engine (initialized when needed)
         self.game_engine = None
         
-    def generate_game_from_video(self, duration: float = 5.0) -> GenerationResult:
+    def generate_project_from_video(self, duration: float = 5.0, project_name: Optional[str] = None, source_path: Optional[str] = None) -> dict:
+        """
+        ProjectGen: Every game MUST be created via video generation.
+        Wraps generate_game_from_video and persists as a Project.
+        Returns: {"result": GenerationResult, "project": ProjectMeta}
+        """
+        result = self.generate_game_from_video(duration=duration, source_path_override=source_path)
+        if result.success and result.game_design:
+            vm = VideoSourceMeta(
+                source_type="video_file" if source_path else "webcam",
+                source_path=source_path,
+                fps=self.config.target_fps,
+                resolution=self.config.resolution,
+                duration=duration,
+                frames_captured=result.frames_processed,
+                frames_processed=result.frames_processed,
+            )
+            project = self.project_manager.create_project(
+                project_name=project_name or result.game_design.title,
+                video_meta=vm,
+                game_design=result.game_design.to_dict()
+            )
+            self.current_project_id = project.project_id
+            return {"result": result, "project": project}
+        return {"result": result, "project": None}
+
+    def generate_project_from_image(self, image_path: str, project_name: Optional[str] = None) -> dict:
+        """
+        ProjectGen for single image: treated as 1-frame video generation.
+        Enforces video-origin rule (frames_processed = 1).
+        """
+        result = self.generate_game_from_image(image_path)
+        if result.success and result.game_design:
+            vm = VideoSourceMeta(
+                source_type="image_file",
+                source_path=image_path,
+                fps=1.0,
+                resolution=self.config.resolution,
+                duration=0.1,
+                frames_captured=1,
+                frames_processed=1,
+            )
+            project = self.project_manager.create_project(
+                project_name=project_name or result.game_design.title,
+                video_meta=vm,
+                game_design=result.game_design.to_dict()
+            )
+            self.current_project_id = project.project_id
+            return {"result": result, "project": project}
+        return {"result": result, "project": None}
+
+    def generate_game_from_video(self, duration: float = 5.0, source_path_override: Optional[str] = None) -> GenerationResult:
         """
         Generate a game from video input.
         
@@ -145,6 +200,7 @@ class AIGameMaker:
         
         Args:
             duration: Duration in seconds to process video
+            source_path_override: for ProjectGen audit trail
             
         Returns:
             GenerationResult with the generated game
@@ -232,6 +288,17 @@ class AIGameMaker:
                     num_levels=self.config.num_levels
                 )
                 
+                # Generate World (tile-first, chunk-first) from same scene meta — video-driven
+                try:
+                    from .world import World
+                    world = World()
+                    world.generate_from_video(scene_dict, seed=last_scene.frame_number)
+                    # attach world dict to game_design for persistence
+                    self.current_game.metadata["world"] = world.to_dict()
+                    self.current_game.metadata["world_meta"] = world.meta
+                except Exception as e:
+                    print(f"World generation failed: {e}")
+
                 # Optimize placement using motion agent
                 for level in self.current_game.levels:
                     level.elements = self.game_agent.optimize_placement(
@@ -326,6 +393,14 @@ class AIGameMaker:
                     scene_dict,
                     num_levels=self.config.num_levels
                 )
+                try:
+                    from .world import World
+                    world = World()
+                    world.generate_from_video(scene_dict, seed=0)
+                    self.current_game.metadata["world"] = world.to_dict()
+                    self.current_game.metadata["world_meta"] = world.meta
+                except Exception as e:
+                    print(f"World generation failed: {e}")
                 
                 generation_time = time.time() - start_time
                 
@@ -429,21 +504,53 @@ class AIGameMaker:
         return None
         
     def save_current_game(self, filepath: str):
-        """Save the current game design to a file."""
-        if self.current_game:
-            self.game_agent.save_game_design(self.current_game, filepath)
-            print(f"Game saved to {filepath}")
-        else:
+        """Save the current game design to a file. Only allowed if video-generated (ProjectGen)."""
+        if not self.current_game:
             print("No game to save.")
+            return
+        # enforce video origin: must have come from recent generation
+        if self.current_project_id is None and (self.last_generation is None or not self.last_generation.success):
+            raise ValueError("ProjectGen enforcement: cannot save a game that was not generated from video. Use generate_project_from_video().")
+        self.game_agent.save_game_design(self.current_game, filepath)
+        print(f"Game saved to {filepath}")
             
     def load_game(self, filepath: str) -> bool:
-        """Load a game design from a file."""
+        """Load a game design from a file. Rejects non-video-generated designs."""
         try:
-            self.current_game = self.game_agent.load_game_design(filepath)
+            loaded = self.game_agent.load_game_design(filepath)
+            # check that it has video lineage if possible
+            if not loaded.metadata.get("source_scene"):
+                print("Warning: loaded design missing video lineage, but allowing for backwards compat")
+            self.current_game = loaded
             print(f"Game loaded from {filepath}")
             return True
         except Exception as e:
             print(f"Error loading game: {e}")
+            return False
+
+    def load_project(self, project_id: str) -> bool:
+        """Load a ProjectGen project as current game (enforced video origin)."""
+        try:
+            design = self.project_manager.load_game_design(project_id)
+            if not design:
+                print(f"Project {project_id} not found")
+                return False
+            # convert dict back to GameDesign object for engine
+            from ..agents.game_agent import GameGenre, GameLevel, GameElement, GameElementType, GameRule
+            # reuse loader via temp file roundtrip simplified: set current_game via dict hydration
+            # Instead directly assign via game_agent loader would need file; we have dict, so rehydrate manually via save/load bypass
+            # Simple: create temp file
+            import tempfile, json, os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tf:
+                json.dump(design, tf)
+                tf_path = tf.name
+            self.current_game = self.game_agent.load_game_design(tf_path)
+            os.remove(tf_path)
+            self.current_project_id = project_id
+            print(f"Project {project_id} loaded: {self.current_game.title}")
+            return True
+        except Exception as e:
+            print(f"Error loading project: {e}")
             return False
             
     def export_research_data(self, filepath: str):

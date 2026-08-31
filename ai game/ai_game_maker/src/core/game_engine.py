@@ -12,6 +12,15 @@ from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass, field
 import random
 import math
+try:
+    from .world import World, TileMap, Tile, TileType, TILE_SIZE, CHUNK_PX
+except Exception as e:
+    World = None
+    TileMap = None
+    Tile = None
+    TileType = None
+    TILE_SIZE = 32
+    CHUNK_PX = 512
 
 
 @dataclass
@@ -282,6 +291,9 @@ class GameEngine:
         self.game_won: bool = False
         self.input_state: dict = {}
         self.last_time: float = 0.0
+        # World system (chunk-first, tile-first)
+        self.world = World() if World else None
+        self.world_debug = False
         
     def initialize(self):
         """Initialize Pygame."""
@@ -292,12 +304,28 @@ class GameEngine:
         self.running = True
         self.last_time = time.time()
         
+    def create_world(self, scene_meta: Optional[dict] = None, seed: Optional[int] = None):
+        """ Create / regenerate World from video scene meta (brightness, motion, scene_type, objects) """
+        if not self.world:
+            from .world import World as W
+            self.world = W()
+        # scene_meta from ProjectGen if provided
+        self.world.generate_from_video(scene_meta or {}, seed=seed)
+        # sync world size to game
+        return self.world
+
+    def load_world(self, world_dict: dict):
+        if not self.world:
+            from .world import World as W
+            self.world = W.from_dict(world_dict)
+        else:
+            from .world import World as W
+            self.world = W.from_dict(world_dict)
+
     def create_from_game_design(self, game_design: dict):
         """
         Create game objects from a game design.
-        
-        Args:
-            game_design: Game design dictionary
+        Also hydrates World if present (world.json), otherwise auto-generates from metadata.
         """
         self.game_objects = []
         self.projectiles = []
@@ -305,6 +333,16 @@ class GameEngine:
         self.game_won = False
         self.score = 0
         self.health = 100
+        # Hydrate or generate World
+        if game_design.get("world"):
+            self.load_world(game_design["world"])
+        elif self.world and not self.world.tilemap.chunks:
+            # Generate default world from game metadata (video-driven if available)
+            scene_meta = game_design.get("metadata", {})
+            # map legacy metadata to scene_meta
+            if "source_scene" in scene_meta:
+                scene_meta = {"scene_type": scene_meta["source_scene"], "brightness": 0.6, "motion_intensity": 0.5, "objects": []}
+            self.create_world(scene_meta)
         
         # Create player
         for element in game_design.get('levels', [{}])[0].get('elements', []):
@@ -409,22 +447,68 @@ class GameEngine:
         )
         self.projectiles.append(projectile)
         
+    def _draw_world(self):
+        """ Draw chunk-first tile world (culling to camera) """
+        if not self.world or not self.world.tilemap.chunks:
+            return
+        for chunk in self.world.tilemap.cull(self.camera_offset[0], self.camera_offset[1], self.screen_width, self.screen_height):
+            ox, oy = chunk.coord.world_px_origin()
+            for ly in range(16):
+                for lx in range(16):
+                    tile = chunk.get(lx,ly)
+                    if tile.type.value == 0: continue
+                    wx = ox + lx * TILE_SIZE
+                    wy = oy + ly * TILE_SIZE
+                    sx = int(wx - self.camera_offset[0]); sy = int(wy - self.camera_offset[1])
+                    if -TILE_SIZE < sx < self.screen_width and -TILE_SIZE < sy < self.screen_height:
+                        pygame.draw.rect(self.screen, tile.color, (sx,sy,TILE_SIZE,TILE_SIZE))
+                        pygame.draw.rect(self.screen, (0,0,0,30), (sx,sy,TILE_SIZE,TILE_SIZE), 1)
+            if self.world_debug:
+                # chunk border
+                oxi, oyi = int(ox - self.camera_offset[0]), int(oy - self.camera_offset[1])
+                pygame.draw.rect(self.screen, (80,80,255), (oxi, oyi, CHUNK_PX, CHUNK_PX), 1)
+                font = pygame.font.SysFont(None, 14)
+                self.screen.blit(font.render(f"{chunk.coord.x},{chunk.coord.y}", True, (80,80,255)), (oxi+4, oyi+4))
+
     def update(self):
-        """Update game state."""
+        """Update game state — now with World physics (swept AABB) + entity collisions."""
         current_time = time.time()
         delta_time = current_time - self.last_time
         self.last_time = current_time
         
-        if delta_time > 0.1:  # Cap delta time to prevent issues
+        if delta_time > 0.1:
             delta_time = 0.1
             
-        # Update player
+        # Update player (with World tile collision if available)
         if self.player:
+            # keep legacy input/physics but add world tile clamp via swept
             self.player.update(delta_time, self.input_state, self.game_objects)
+            if self.world:
+                # world tile collision resolution (swept)
+                nx, ny, hit_x, hit_y = self.world.physics.swept_move(self.player.x, self.player.y, self.player.width, self.player.height, self.player.velocity_x*delta_time*60, self.player.velocity_y*delta_time*60)
+                # only correct if diff
+                if hit_x: self.player.velocity_x = 0
+                if hit_y:
+                    if self.player.velocity_y > 0: self.player.is_grounded = True
+                    self.player.velocity_y = 0
+                # we already moved via player.update, so apply correction delta
+                # simple clamp: if hit, keep corrected ny
+                if hit_x or hit_y:
+                    self.player.x, self.player.y = nx - self.player.velocity_x*delta_time*60 + self.player.velocity_x*delta_time*60, ny  # keep world pos
+                    # actually set to nx,ny computed
+                    self.player.x, self.player.y = nx - (self.player.velocity_x*0 if hit_x else 0), ny if hit_y else self.player.y
             
-            # Update camera to follow player
+            # Update camera to follow player (clamp to world bounds)
             target_x = self.player.x - self.screen_width / 2
-            self.camera_offset = (target_x, 0)
+            target_y = self.player.y - self.screen_height / 2
+            if self.world:
+                max_x = self.world.world_size_tiles[0]*TILE_SIZE - self.screen_width
+                max_y = self.world.world_size_tiles[1]*TILE_SIZE - self.screen_height
+                target_x = max(0, min(target_x, max(0, max_x)))
+                target_y = max(0, min(target_y, max(0, max_y)))
+                self.camera_offset = (target_x, target_y)
+            else:
+                self.camera_offset = (target_x, 0)
             
         # Update game objects
         for obj in self.game_objects:
@@ -470,13 +554,16 @@ class GameEngine:
             self.game_won = True
             
     def draw(self):
-        """Draw game objects."""
+        """Draw world + game objects (world-first)."""
         if self.screen is None:
             return
             
         # Clear screen
-        self.screen.fill((240, 240, 240))  # Light gray background
+        self.screen.fill((180, 210, 240) if self.world else (240, 240, 240))
         
+        # Draw tile world first (chunk culled)
+        self._draw_world()
+
         # Draw game objects
         for obj in self.game_objects:
             obj.draw(self.screen, self.camera_offset)

@@ -48,7 +48,7 @@ async function runThreatIntelTests() {
     const suffix = sha1.slice(5);
 
     const hibpRes = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
-      headers: { 'User-Agent': 'Either-AI-OSINT-Test/1.0' },
+      headers: { 'User-Agent': 'Either-AI-OSINT-Test/1.0', 'x-test-suite': 'either-ai-test' },
       signal: AbortSignal.timeout(8000)
     });
 
@@ -65,7 +65,7 @@ async function runThreatIntelTests() {
   console.log('\n• [2/6] Testing CISA Known Exploited Vulnerabilities Feed...');
   try {
     const cisaRes = await fetch('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json', {
-      headers: { 'User-Agent': 'Either-AI-OSINT-Test/1.0' },
+      headers: { 'User-Agent': 'Either-AI-OSINT-Test/1.0', 'x-test-suite': 'either-ai-test' },
       signal: AbortSignal.timeout(10000)
     });
     assert(cisaRes.ok, `CISA KEV feed returns HTTP ${cisaRes.status}`);
@@ -95,7 +95,9 @@ async function runThreatIntelTests() {
   // 4. Test Live Server OSINT Status Endpoint (GET /api/osint/darkweb/status)
   console.log('\n• [4/6] Testing Server OSINT Status & Tor Auto-Discovery...');
   try {
-    const statusRes = await fetch(`${BASE_URL}/api/osint/darkweb/status`);
+    const statusRes = await fetch(`${BASE_URL}/api/osint/darkweb/status`, {
+      headers: { 'x-test-suite': 'either-ai-test' }
+    });
     assert(statusRes.status === 200, 'GET /api/osint/darkweb/status returns 200 OK');
     const statusData = await statusRes.json();
     assert(statusData.success === true, 'Status response success is true');
@@ -112,7 +114,7 @@ async function runThreatIntelTests() {
   try {
     const hibpCheckRes = await fetch(`${BASE_URL}/api/osint/darkweb/hibp-check`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ term: 'password123' })
     });
     assert(hibpCheckRes.status === 200, 'POST /api/osint/darkweb/hibp-check returns 200 OK');
@@ -131,7 +133,7 @@ async function runThreatIntelTests() {
   try {
     const researchRes = await fetch(`${BASE_URL}/api/osint/darkweb/research`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({
         query: 'ransomware lockbit',
         category: 'ransomware',

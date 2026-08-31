@@ -97,7 +97,7 @@ export class MultiModelRouter {
       }
     }
 
-    // 2. Primary Sovereign Provider: Google Gemini
+    // 2. Primary Provider: Google Gemini
     try {
       const ai = getGenAI();
       if (ai) {
@@ -114,7 +114,48 @@ export class MultiModelRouter {
         };
       }
     } catch (geminiErr: any) {
-      console.warn('[MultiModelRouter] Gemini generation error, using heuristic fallback:', geminiErr.message);
+      console.warn('[MultiModelRouter] Gemini generation error, attempting backend model key:', geminiErr.message);
+    }
+
+    // 3. Backend Model Key / OpenAI / OpenRouter Fallback Provider
+    const backendKey = process.env.BACKEND_MODEL_KEY || process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+    if (backendKey) {
+      try {
+        const isOpenRouter = backendKey.startsWith('sk-or-') || backendKey.length > 45;
+        const endpoint = isOpenRouter ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+        const modelName = isOpenRouter ? 'google/gemini-2.5-flash' : 'gpt-4o-mini';
+
+        const openRes = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${backendKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              ...(systemInstruction ? [{ role: 'system', content: systemInstruction }] : []),
+              { role: 'user', content: prompt }
+            ]
+          }),
+          signal: AbortSignal.timeout(15000)
+        });
+
+        if (openRes.ok) {
+          const data: any = await openRes.json();
+          const answer = data.choices?.[0]?.message?.content;
+          if (answer) {
+            return {
+              provider: 'openai',
+              model: modelName,
+              content: answer,
+              durationMs: Date.now() - startTime
+            };
+          }
+        }
+      } catch (err: any) {
+        console.warn('[MultiModelRouter] Backend model key call error:', err.message);
+      }
     }
 
     // Fallback heuristic response
@@ -127,11 +168,13 @@ export class MultiModelRouter {
   }
 
   public getAvailableProviders() {
+    const hasBackendKey = !!(process.env.BACKEND_MODEL_KEY || process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY);
     return {
       gemini: { available: !!process.env.GEMINI_API_KEY, models: ['gemini-3.5-flash', 'gemini-2.5-pro'] },
+      backendModelKey: { available: hasBackendKey, models: ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'] },
       ollama: { available: true, endpoint: process.env.OLLAMA_HOST || 'http://127.0.0.1:11434' },
       anthropic: { available: !!process.env.ANTHROPIC_API_KEY, models: ['claude-3-5-sonnet-20241022'] },
-      openai: { available: !!process.env.OPENAI_API_KEY, models: ['gpt-4o', 'gpt-4o-mini'] }
+      openai: { available: hasBackendKey, models: ['gpt-4o', 'gpt-4o-mini'] }
     };
   }
 }

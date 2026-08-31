@@ -251,16 +251,14 @@ class GameAgent:
         # Generate elements from detected objects
         elements = self._generate_elements(scene_analysis)
         
-        # Add level-specific elements
-        elements.extend(self._generate_level_specific_elements(level_num, genre))
+        # Add level-specific elements (pass existing to avoid duplicate player)
+        elements.extend(self._generate_level_specific_elements(level_num, genre, existing=elements))
         
         # Generate rules
         rules = self._generate_level_rules(elements, genre)
         
         # Calculate difficulty
-        difficulty = self.difficulty_range[0] + 
-                    (self.difficulty_range[1] - self.difficulty_range[0]) * 
-                    (level_num / 10.0)  # Scale with level number
+        difficulty = self.difficulty_range[0] + (self.difficulty_range[1] - self.difficulty_range[0]) * (level_num / 10.0)  # Scale with level number
         
         return GameLevel(
             level_id=level_id,
@@ -338,13 +336,14 @@ class GameAgent:
         return properties
         
     def _generate_level_specific_elements(self, level_num: int, 
-                                          genre: GameGenre) -> List[GameElement]:
-        """Generate level-specific elements."""
+                                          genre: GameGenre, existing: List[GameElement] = None) -> List[GameElement]:
+        """Generate level-specific elements. Checks existing so we don't duplicate player."""
         elements = []
-        
-        # Add player if not present
-        has_player = any(e.element_type == GameElementType.PLAYER 
-                         for e in elements)
+        has_player = False
+        if existing:
+            has_player = any(e.element_type == GameElementType.PLAYER for e in existing)
+        # also check elements itself (for solo call)
+        has_player = has_player or any(e.element_type == GameElementType.PLAYER for e in elements)
         if not has_player:
             elements.append(GameElement(
                 element_type=GameElementType.PLAYER,

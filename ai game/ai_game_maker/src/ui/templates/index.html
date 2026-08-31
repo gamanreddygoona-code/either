@@ -3,380 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Game Maker - Research Tool</title>
+    <title>AI Game Maker — Permy Boxx</title>
     <link rel="stylesheet" href="/static/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* PERMY BOXX + RIGHT GAME RENDER */
+        .app-permy { display:flex; min-height:100vh; background:#f5f7fb; }
+        .permy-box {
+            width:420px; min-width:360px; max-width:460px;
+            background:#ffffff; border-right:1px solid #e9ecef;
+            display:flex; flex-direction:column; height:100vh; position:sticky; top:0;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.04);
+        }
+        .permy-scroll { flex:1; overflow-y:auto; padding:18px; }
+        .permy-header { padding:16px 18px; border-bottom:1px solid #eef2f7; display:flex; align-items:center; justify-content:space-between; }
+        .permy-title { font-size:16px; font-weight:700; letter-spacing:-0.02em; }
+        .permy-sub { font-size:11px; color:#6c757d; margin-top:2px; }
+        .game-side {
+            flex:1; background:#0b0e14; display:flex; flex-direction:column; position:relative; overflow:hidden;
+        }
+        .game-side-header {
+            height:56px; border-bottom:1px solid rgba(255,255,255,0.08);
+            display:flex; align-items:center; justify-content:space-between;
+            padding:0 18px; color:#fff; background:rgba(255,255,255,0.02);
+        }
+        .game-side-header .left { display:flex; gap:12px; align-items:center; }
+        .game-side-canvas-wrap { flex:1; display:flex; align-items:center; justify-content:center; padding:18px; background:radial-gradient(600px 400px at 50% 0%, #1a2333 0%, #0b0e14 70%); }
+        .game-side canvas.game-canvas { width:100%; max-width:960px; aspect-ratio:16/10; background:#111; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 20px 60px rgba(0,0,0,0.5); }
+        .permy-section { background:#fff; border:1px solid #eef2f7; border-radius:10px; overflow:hidden; margin-bottom:14px; }
+        .permy-section-header { padding:10px 12px; border-bottom:1px solid #f1f3f5; display:flex; justify-content:space-between; align-items:center; }
+        .permy-section-header h3 { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#212529; }
+        .permy-box .sidebar-tabs { flex-direction:row; overflow-x:auto; padding:8px; gap:6px; border-bottom:1px solid #eef2f7; }
+        .permy-box .tab-btn { white-space:nowrap; padding:8px 10px; font-size:12px; }
+        .permy-box .tab-content { padding:12px; }
+        .status-dot { width:8px; height:8px; }
+        @media (max-width: 900px){ .app-permy{ flex-direction:column; } .permy-box{ width:100%; max-width:none; height:auto; position:relative; } .game-side{ min-height:60vh; } }
+    </style>
 </head>
 <body>
-    <div class="app-container">
-        <!-- Main Content Area -->
-        <div class="main-content">
-            <!-- Header -->
-            <header class="header">
-                <div class="header-left">
-                    <h1 class="title">AI Game Maker</h1>
-                    <span class="subtitle">Video to Game Generation Research Tool</span>
-                </div>
-                <div class="header-right">
-                    <div class="status-indicator" id="systemStatus">
-                        <span class="status-dot"></span>
-                        <span class="status-text">Ready</span>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Main Workspace -->
-            <div class="workspace">
-                <!-- Video Preview Section -->
-                <div class="section" id="videoSection">
-                    <div class="section-header">
-                        <h2>Video Input</h2>
-                        <div class="section-actions">
-                            <button class="btn btn-secondary" onclick="startCamera()">
-                                <span class="icon">📹</span> Start Camera
-                            </button>
-                            <button class="btn btn-secondary" onclick="stopCamera()">
-                                <span class="icon">⏹️</span> Stop
-                            </button>
-                            <button class="btn btn-primary" onclick="captureFrame()">
-                                <span class="icon">📸</span> Capture Frame
-                            </button>
-                        </div>
-                    </div>
-                    <div class="video-container">
-                        <video id="videoInput" autoplay muted playsinline class="video-feed"></video>
-                        <canvas id="videoCanvas" class="video-canvas"></canvas>
-                        <div class="video-overlay" id="videoOverlay">
-                            <div class="overlay-message">No video input</div>
-                        </div>
-                    </div>
-                    <div class="video-controls">
-                        <div class="control-group">
-                            <label>Resolution:</label>
-                            <select id="resolutionSelect" class="input-select">
-                                <option value="640x480">640x480</option>
-                                <option value="800x600">800x600</option>
-                                <option value="1024x768">1024x768</option>
-                                <option value="1280x720">1280x720</option>
-                            </select>
-                        </div>
-                        <div class="control-group">
-                            <label>FPS:</label>
-                            <input type="number" id="fpsInput" value="10" min="1" max="60" class="input-number">
-                        </div>
-                        <div class="control-group">
-                            <label>Duration (s):</label>
-                            <input type="number" id="durationInput" value="5" min="1" max="60" class="input-number">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Generation Section -->
-                <div class="section" id="generationSection">
-                    <div class="section-header">
-                        <h2>Game Generation</h2>
-                        <div class="section-actions">
-                            <button class="btn btn-primary" onclick="generateGame()" id="generateBtn">
-                                <span class="icon">✨</span> Generate Game
-                            </button>
-                            <button class="btn btn-secondary" onclick="stopGeneration()" id="stopBtn" disabled>
-                                <span class="icon">⏹️</span> Stop
-                            </button>
-                        </div>
-                    </div>
-                    <div class="generation-container">
-                        <div class="generation-status" id="generationStatus">
-                            <div class="status-icon">⏳</div>
-                            <div class="status-text">Ready to generate</div>
-                        </div>
-                        <div class="progress-bar" id="generationProgress">
-                            <div class="progress-fill" id="progressFill"></div>
-                        </div>
-                        <div class="generation-stats" id="generationStats">
-                            <div class="stat-item">
-                                <span class="stat-label">Frames Processed:</span>
-                                <span class="stat-value" id="framesProcessed">0</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">Objects Detected:</span>
-                                <span class="stat-value" id="objectsDetected">0</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">Generation Time:</span>
-                                <span class="stat-value" id="generationTime">0s</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Game Preview Section -->
-                <div class="section" id="gameSection">
-                    <div class="section-header">
-                        <h2>Generated Game</h2>
-                        <div class="section-actions">
-                            <button class="btn btn-primary" onclick="runGame()" id="runGameBtn" disabled>
-                                <span class="icon">▶️</span> Run Game
-                            </button>
-                            <button class="btn btn-secondary" onclick="exportGame()" id="exportGameBtn" disabled>
-                                <span class="icon">💾</span> Export
-                            </button>
-                            <button class="btn btn-secondary" onclick="saveGame()" id="saveGameBtn" disabled>
-                                <span class="icon">📥</span> Save
-                            </button>
-                        </div>
-                    </div>
-                    <div class="game-preview-container">
-                        <div class="game-info" id="gameInfo">
-                            <div class="info-item">
-                                <span class="info-label">Title:</span>
-                                <span class="info-value" id="gameTitle">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Genre:</span>
-                                <span class="info-value" id="gameGenre">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Theme:</span>
-                                <span class="info-value" id="gameTheme">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Levels:</span>
-                                <span class="info-value" id="gameLevels">-</span>
-                            </div>
-                        </div>
-                        <div class="game-visualization" id="gameVisualization">
-                            <canvas id="gameCanvas" class="game-canvas"></canvas>
-                            <div class="visualization-overlay" id="visualizationOverlay">
-                                <div class="overlay-icon">🎮</div>
-                                <div class="overlay-text">No game generated yet</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div class="app-permy">
+    <!-- PERMY BOXX — UI ONLY -->
+    <div class="permy-box">
+        <div class="permy-header">
+            <div>
+                <div class="permy-title">AI Game Maker</div>
+                <div class="permy-sub">Permy Boxx • ProjectGen • video → game</div>
             </div>
+            <div class="status-indicator" id="systemStatus"><span class="status-dot"></span><span class="status-text">Ready</span></div>
         </div>
 
-        <!-- Right Sidebar with Tabs -->
-        <div class="sidebar">
-            <div class="sidebar-tabs">
-                <button class="tab-btn active" data-tab="settings" onclick="switchTab('settings')">
-                    <span class="tab-icon">⚙️</span>
-                    <span class="tab-text">Settings</span>
-                </button>
-                <button class="tab-btn" data-tab="ai" onclick="switchTab('ai')">
-                    <span class="tab-icon">🤖</span>
-                    <span class="tab-text">AI Agents</span>
-                </button>
-                <button class="tab-btn" data-tab="research" onclick="switchTab('research')">
-                    <span class="tab-icon">🔬</span>
-                    <span class="tab-text">Research</span>
-                </button>
-                <button class="tab-btn" data-tab="history" onclick="switchTab('history')">
-                    <span class="tab-icon">📜</span>
-                    <span class="tab-text">History</span>
-                </button>
-            </div>
-            
-            <div class="tab-content" id="settingsTab">
-                <div class="tab-section">
-                    <h3>Generation Settings</h3>
-                    <div class="form-group">
-                        <label for="creativitySlider">Creativity Level</label>
-                        <input type="range" id="creativitySlider" min="0" max="1" step="0.1" value="0.7" class="slider">
-                        <span class="slider-value" id="creativityValue">0.7</span>
-                    </div>
-                    <div class="form-group">
-                        <label for="numLevelsInput">Number of Levels</label>
-                        <input type="number" id="numLevelsInput" min="1" max="10" value="3" class="input-number">
-                    </div>
-                    <div class="form-group">
-                        <label for="gameGenreSelect">Preferred Genre</label>
-                        <select id="gameGenreSelect" class="input-select">
-                            <option value="">Auto-detect</option>
-                            <option value="platformer">Platformer</option>
-                            <option value="shooter">Shooter</option>
-                            <option value="puzzle">Puzzle</option>
-                            <option value="racing">Racing</option>
-                            <option value="adventure">Adventure</option>
-                            <option value="arcade">Arcade</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="tab-section">
-                    <h3>Video Processing</h3>
-                    <div class="form-group">
-                        <label for="videoSourceSelect">Video Source</label>
-                        <select id="videoSourceSelect" class="input-select">
-                            <option value="0">Webcam (Default)</option>
-                            <option value="1">Secondary Camera</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="frameSkipInput">Frame Skip</label>
-                        <input type="number" id="frameSkipInput" min="0" max="10" value="1" class="input-number">
-                    </div>
-                </div>
-                
-                <div class="tab-section">
-                    <button class="btn btn-block" onclick="applySettings()">
-                        <span class="icon">✓</span> Apply Settings
-                    </button>
+        <!-- removed per user: only prompt box visible -->
+        <div class="sidebar-tabs" style="display:none;">
+            <button class="tab-btn active" data-tab="projects" onclick="switchTab('projects')">📦 Projects</button>
+            <button class="tab-btn" data-tab="world" onclick="switchTab('world')">🌍 World</button>
+        </div>
+
+        <!-- Simple chat thread -->
+        <div id="chatThread" style="flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; min-height:160px; background:#f8f9fb; border-bottom:1px solid #eef2f7;">
+            <div style="background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:10px 12px; font-size:13px; color:#212529;"><b>AI Game Maker</b> — Hi! Describe a game or drop a video in the prompt below. Every game is generated from video frames (multi-fps) via ProjectGen.</div>
+            <div id="chatMessages" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+        <div class="permy-scroll" style="display:none;">
+            <!-- hidden per user request — kept for JS compat but not visible -->
+            <!-- ProjectGen banner -->
+            <div class="permy-section">
+                <div class="permy-section-header"><h3>ProjectGen • Video → Game</h3><span style="font-size:10px;color:#6c757d;">multi-fps • live motion</span></div>
+                <div style="padding:12px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <input type="text" id="projectNameInput" placeholder="Project name" class="input-text" style="flex:1; min-width:140px;">
+                    <label class="btn btn-secondary" style="cursor:pointer; font-size:12px;"><span class="icon">🎞️</span> Upload<input type="file" id="videoUploadInput" accept="video/*" style="display:none;" onchange="handleVideoUpload(event)"></label>
                 </div>
             </div>
-            
+
+            <!-- Video -->
+            <div class="permy-section" id="videoSection">
+                <div class="permy-section-header"><h3>Video Input</h3><div style="display:flex; gap:6px;"><button class="btn btn-secondary" style="padding:6px 8px;font-size:11px;" onclick="startCamera()">📹 Start</button><button class="btn btn-secondary" style="padding:6px 8px;font-size:11px;" onclick="stopCamera()">⏹️</button><button class="btn btn-primary" style="padding:6px 8px;font-size:11px;" onclick="captureFrame()">📸 Frame</button></div></div>
+                <div class="video-container" style="margin:0; border-radius:0;">
+                    <video id="videoInput" autoplay muted playsinline class="video-feed" style="max-height:180px;"></video>
+                    <canvas id="videoCanvas" class="video-canvas"></canvas>
+                    <div class="video-overlay" id="videoOverlay"><div class="overlay-message" style="font-size:12px;">No video — start camera or upload</div></div>
+                </div>
+                <div class="video-controls" style="padding:8px 10px; gap:8px; flex-wrap:wrap;">
+                    <div class="control-group"><label style="font-size:11px;">Res</label><select id="resolutionSelect" class="input-select" style="padding:4px 6px;font-size:11px;"><option value="640x480">640×480</option><option value="800x600">800×600</option><option value="1280x720">1280×720</option></select></div>
+                    <div class="control-group"><label style="font-size:11px;">FPS</label><input type="number" id="fpsInput" value="10" min="1" max="60" class="input-number" style="width:60px;padding:4px;"></div>
+                    <div class="control-group"><label style="font-size:11px;">Dur</label><input type="number" id="durationInput" value="5" min="1" max="60" class="input-number" style="width:60px;padding:4px;"></div>
+                </div>
+            </div>
+
+            <!-- Generation -->
+            <div class="permy-section" id="generationSection">
+                <div class="permy-section-header"><h3>Generate</h3><button class="btn btn-primary" onclick="generateGame()" id="generateBtn" style="padding:6px 10px;font-size:12px;">✨ Generate Project</button></div>
+                <div style="padding:10px;">
+                    <div class="generation-status" id="generationStatus" style="padding:8px;"><div class="status-icon">⏳</div><div class="status-text" style="font-size:12px;">Ready</div></div>
+                    <div class="progress-bar" id="generationProgress" style="height:6px;"><div class="progress-fill" id="progressFill"></div></div>
+                    <div style="display:flex; gap:10px; margin-top:8px; font-size:11px;"><span>Frames <b id="framesProcessed">0</b></span><span>Objs <b id="objectsDetected">0</b></span><span>Time <b id="generationTime">0s</b></span><button class="btn btn-secondary" style="margin-left:auto;padding:4px 6px;font-size:10px;" onclick="stopGeneration()" id="stopBtn" disabled>⏹️</button></div>
+                </div>
+            </div>
+
+            <!-- Tab contents inside permy box -->
+            <div class="tab-content" id="projectsTab">
+                <div class="tab-section" style="margin:0;">
+                    <h3 style="font-size:12px;">Projects</h3>
+                    <div class="history-list" id="projectsList" style="max-height:220px;"></div>
+                    <button class="btn btn-block" onclick="refreshProjects()" style="margin-top:8px; font-size:12px;">🔄 Refresh</button>
+                    <div id="activeProjectInfo" style="margin-top:8px; font-size:12px; background:#f8f9fa; padding:8px; border-radius:6px;">None loaded</div>
+                </div>
+            </div>
+            <div class="tab-content hidden" id="worldTab">
+                <div class="tab-section" style="margin:0;">
+                    <h3 style="font-size:12px;">World Engine</h3>
+                    <div id="worldInfo" style="margin-top:6px;background:#f8f9fa;padding:8px;border-radius:6px;font-size:11px;">No world — generate project</div>
+                    <div style="margin-top:8px;display:flex;gap:6px;"><button class="btn btn-small" onclick="loadWorldPreview()" style="font-size:11px;">🔍 Preview</button><button class="btn btn-small" onclick="toggleWorldDebug()" style="font-size:11px;">🧩 Chunks</button></div>
+                    <pre id="worldJsonPreview" style="background:#fff;border:1px solid #e9ecef;padding:6px;border-radius:6px;font-size:9px;max-height:120px;overflow:auto;margin-top:8px;">—</pre>
+                </div>
+            </div>
+            <div class="tab-content hidden" id="settingsTab">
+                <div class="tab-section" style="margin:0;">
+                    <h3 style="font-size:12px;">Settings</h3>
+                    <div class="form-group"><label style="font-size:11px;">Creativity</label><input type="range" id="creativitySlider" min="0" max="1" step="0.1" value="0.7" class="slider"><span class="slider-value" id="creativityValue" style="font-size:11px;">0.7</span></div>
+                    <div class="form-group"><label style="font-size:11px;">Levels</label><input type="number" id="numLevelsInput" min="1" max="10" value="3" class="input-number" style="width:70px;"></div>
+                    <div class="form-group"><label style="font-size:11px;">Genre</label><select id="gameGenreSelect" class="input-select" style="font-size:11px;"><option value="">Auto</option><option value="platformer">Platformer</option><option value="shooter">Shooter</option><option value="puzzle">Puzzle</option></select></div>
+                    <div class="form-group"><label style="font-size:11px;">Source</label><select id="videoSourceSelect" class="input-select" style="font-size:11px;"><option value="0">Webcam</option><option value="1">Cam 2</option></select></div>
+                    <div class="form-group"><label style="font-size:11px;">Skip</label><input type="number" id="frameSkipInput" min="0" max="10" value="1" class="input-number" style="width:70px;"></div>
+                    <button class="btn btn-block" onclick="applySettings()" style="font-size:12px; margin-top:8px;">✓ Apply</button>
+                </div>
+            </div>
             <div class="tab-content hidden" id="aiTab">
-                <div class="tab-section">
-                    <h3>AI Vision Status</h3>
-                    <div class="status-card" id="aiVisionStatus">
-                        <div class="status-icon">👁️</div>
-                        <div class="status-info">
-                            <div class="status-label">Model:</div>
-                            <div class="status-value">YOLOv8n</div>
-                        </div>
-                        <div class="status-info">
-                            <div class="status-label">Device:</div>
-                            <div class="status-value">CPU</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="tab-section">
-                    <h3>Motion Agent</h3>
-                    <div class="stats-grid" id="motionStats">
-                        <div class="stat-card">
-                            <div class="stat-value" id="motionPatterns">0</div>
-                            <div class="stat-label">Patterns</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="motionHistory">0</div>
-                            <div class="stat-label">History Items</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="motionProfiles">0</div>
-                            <div class="stat-label">Profiles</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="tab-section">
-                    <h3>Game Agent</h3>
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-value" id="gamesGenerated">0</div>
-                            <div class="stat-label">Games Generated</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="creativityLevel">0.7</div>
-                            <div class="stat-label">Creativity</div>
-                        </div>
-                    </div>
-                </div>
+                <div class="tab-section" style="margin:0;"><h3 style="font-size:12px;">AI Agents</h3><div class="stats-grid" style="grid-template-columns:repeat(3,1fr);"><div class="stat-card"><div class="stat-value" id="motionPatterns">0</div><div class="stat-label">Patterns</div></div><div class="stat-card"><div class="stat-value" id="motionHistory">0</div><div class="stat-label">History</div></div><div class="stat-card"><div class="stat-value" id="motionProfiles">0</div><div class="stat-label">Profiles</div></div></div></div>
             </div>
-            
             <div class="tab-content hidden" id="researchTab">
-                <div class="tab-section">
-                    <h3>Research Data</h3>
-                    <div class="form-group">
-                        <label for="researchFilename">Filename</label>
-                        <input type="text" id="researchFilename" value="research_data" class="input-text">
-                    </div>
-                    <button class="btn btn-block" onclick="exportResearchData()">
-                        <span class="icon">📤</span> Export Research Data
-                    </button>
-                </div>
-                
-                <div class="tab-section">
-                    <h3>Generation Statistics</h3>
-                    <div class="stats-list" id="generationStatsList">
-                        <div class="stats-item">
-                            <span class="stats-label">Total Generations:</span>
-                            <span class="stats-value" id="totalGenerations">0</span>
-                        </div>
-                        <div class="stats-item">
-                            <span class="stats-label">Avg. Time:</span>
-                            <span class="stats-value" id="avgGenerationTime">0s</span>
-                        </div>
-                        <div class="stats-item">
-                            <span class="stats-label">Avg. Frames:</span>
-                            <span class="stats-value" id="avgFramesProcessed">0</span>
-                        </div>
-                    </div>
-                </div>
+                <div class="tab-section" style="margin:0;"><h3 style="font-size:12px;">Research</h3><button class="btn btn-block" onclick="exportResearchData()" style="font-size:12px;">📤 Export</button><div style="margin-top:8px;font-size:11px;"><div>Total <span id="totalGenerations">0</span></div><div>AvgTime <span id="avgGenerationTime">0s</span></div><div>AvgFrames <span id="avgFramesProcessed">0</span></div></div></div>
             </div>
-            
             <div class="tab-content hidden" id="historyTab">
-                <div class="tab-section">
-                    <h3>Generation History</h3>
-                    <div class="history-list" id="historyList">
-                        <div class="history-item">
-                            <div class="history-time">-</div>
-                            <div class="history-title">No generations yet</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="tab-section">
-                    <h3>Saved Games</h3>
-                    <div class="saved-games-list" id="savedGamesList">
-                        <div class="saved-game-item">
-                            <div class="saved-game-name">-</div>
-                            <button class="btn btn-small" onclick="loadGame('')">Load</button>
-                        </div>
-                    </div>
-                </div>
+                <div class="tab-section" style="margin:0;"><h3 style="font-size:12px;">History</h3><div class="history-list" id="historyList"></div><div class="saved-games-list" id="savedGamesList" style="margin-top:8px;"></div></div>
             </div>
+        </div>
+        <!-- Simple prompt place — chat input bar (bottom of permy boxx) -->
+        <div style="padding:10px 12px; border-top:1px solid #eef2f7; background:#fff; display:flex; gap:8px; align-items:center; position:sticky; bottom:0;">
+            <label class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer; background:#f1f3f5; border-color:#e9ecef;" title="Upload video">📎<input type="file" id="chatVideoInput" accept="video/*" style="display:none;" onchange="handleChatVideo(event)"></label>
+            <input id="chatPrompt" type="text" placeholder="Describe a game or attach video…" class="input-text" style="flex:1; border-radius:999px; padding:10px 14px; font-size:13px; background:#f8f9fa; border-color:#e9ecef;" onkeydown="if(event.key==='Enter') sendChat()">
+            <label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#6c757d; white-space:nowrap; cursor:pointer;"><input type="checkbox" id="fakeRealToggle" title="Demo fake that looks real"> Fake-Real</label>
+            <button onclick="sendChat()" class="btn btn-primary" style="border-radius:999px; padding:10px 14px; font-size:13px; font-weight:700;">Send ➤</button>
         </div>
     </div>
 
-    <!-- Modals -->
-    <div class="modal" id="exportModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Export Game</h3>
-                <button class="modal-close" onclick="closeModal('exportModal')">&times;</button>
+    <!-- RIGHT SIDE — GAME RENDERS -->
+    <div class="game-side">
+        <div class="game-side-header">
+            <div class="left">
+                <span style="font-weight:700; letter-spacing:-0.02em;">▶ Game</span>
+                <span id="gameTitle" style="color:#8ea0bf; font-size:12px;">—</span>
+                <span id="gameGenre" style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-size:10px;"></span>
+                <span id="gameTheme" style="color:#6d7a94; font-size:11px;"></span>
+                <span style="font-size:11px; color:#6d7a94;">Lvls <b id="gameLevels" style="color:#fff;">—</b></span>
             </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="exportFilename">Filename</label>
-                    <input type="text" id="exportFilename" value="game_design" class="input-text">
-                </div>
-                <div class="form-group">
-                    <label for="exportFormat">Format</label>
-                    <select id="exportFormat" class="input-select">
-                        <option value="json">JSON</option>
-                    </select>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('exportModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmExport()">Export</button>
+            <div style="display:flex; gap:8px;">
+                <button class="btn" onclick="openGenieWorld()" style="padding:6px 10px; font-size:12px; background:#7c3aed; color:#fff; border:none;">🌍 Genie World</button>
+                <button class="btn btn-primary" onclick="runGame()" id="runGameBtn" disabled style="padding:6px 10px; font-size:12px;">▶ Run Fullscreen</button>
+                <button class="btn btn-secondary" onclick="exportGame()" id="exportGameBtn" disabled style="padding:6px 10px; font-size:12px; background:rgba(255,255,255,0.1); color:#fff; border-color:rgba(255,255,255,0.15);">💾 Export</button>
             </div>
         </div>
-    </div>
-
-    <div class="modal" id="saveModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Save Game</h3>
-                <button class="modal-close" onclick="closeModal('saveModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="saveFilename">Filename</label>
-                    <input type="text" id="saveFilename" value="my_game" class="input-text">
+        <div class="game-side-canvas-wrap">
+            <div style="position:relative; width:100%; max-width:960px;">
+                <canvas id="gameCanvas" class="game-canvas"></canvas>
+                <div class="visualization-overlay" id="visualizationOverlay" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(11,14,20,0.72); border-radius:12px; color:#8ea0bf;">
+                    <div class="overlay-icon" style="font-size:32px;">🎮</div>
+                    <div class="overlay-text" style="font-size:13px;">No game yet — generate from video in Permy Boxx</div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('saveModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmSave()">Save</button>
-            </div>
         </div>
+        <div style="padding:10px 14px; border-top:1px solid rgba(255,255,255,0.06); display:flex; gap:10px; color:#6d7a94; font-size:11px; background:rgba(0,0,0,0.2);">
+            <span>World chunks rendered right-side • Tile 32px • Chunk 16×16 • Swept physics</span><span style="margin-left:auto;">Permy Boxx UI only • Game renders → right side</span>
+        </div>
+        <!-- keep hidden game-info for JS compat -->
+        <div id="gameInfo" style="display:none;"></div>
     </div>
+</div>
 
-    <!-- Toast Notifications -->
-    <div class="toast-container" id="toastContainer"></div>
-
-    <script src="/static/app.js"></script>
+<!-- Modals & Toast -->
+<div class="modal" id="exportModal"><div class="modal-content"><div class="modal-header"><h3>Export</h3><button class="modal-close" onclick="closeModal('exportModal')">&times;</button></div><div class="modal-body"><div class="form-group"><label>Filename</label><input type="text" id="exportFilename" value="game_design" class="input-text"></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('exportModal')">Cancel</button><button class="btn btn-primary" onclick="confirmExport()">Export</button></div></div></div>
+<div class="modal" id="saveModal"><div class="modal-content"><div class="modal-header"><h3>Save</h3><button class="modal-close" onclick="closeModal('saveModal')">&times;</button></div><div class="modal-body"><div class="form-group"><label>Filename</label><input type="text" id="saveFilename" value="my_game" class="input-text"></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('saveModal')">Cancel</button><button class="btn btn-primary" onclick="confirmSave()">Save</button></div></div></div>
+<div class="toast-container" id="toastContainer"></div>
+<script src="/static/app.js"></script>
 </body>
 </html>

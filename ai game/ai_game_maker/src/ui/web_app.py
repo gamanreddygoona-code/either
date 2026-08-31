@@ -11,9 +11,13 @@ import os
 import json
 import threading
 import time
+from pathlib import Path
 from typing import Optional, Dict, Any
+try: from ..core.config import has_token, token_preview, auth_headers
+except Exception: has_token=lambda: False; token_preview=lambda: "missing"; auth_headers=lambda: {}
 
 from ..core.ai_game_maker import AIGameMaker, GenerationConfig, get_game_maker, reset_game_maker
+from ..core.project_manager import ProjectManager
 
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -96,25 +100,129 @@ def api_config():
     return jsonify(game_maker.config.to_dict())
 
 
+@app.route('/api/projects/generate', methods=['POST'])
+def api_projects_generate():
+    """ProjectGen: Create a new project strictly from video generation."""
+    global _generation_thread
+    game_maker = get_app_game_maker()
+    data = request.json or {}
+    duration = float(data.get('duration', 5.0))
+    project_name = data.get('project_name')
+    source_path = data.get('source_path')  # optional video file on server
+
+    # If video file uploaded via multipart, handle separately via /api/projects/upload
+    if game_maker.is_running:
+        return jsonify({'error': 'Generation already in progress'}), 429
+
+    def generation_task():
+        bundle = game_maker.generate_project_from_video(duration=duration, project_name=project_name, source_path=source_path)
+        # store last generation for polling
+        game_maker.last_generation = bundle["result"]
+        return bundle
+
+    _generation_thread = threading.Thread(target=generation_task)
+    _generation_thread.start()
+    return jsonify({'status': 'started', 'message': 'ProjectGen started from video', 'duration': duration, 'project_name': project_name})
+
+
+@app.route('/api/projects/upload', methods=['POST'])
+def api_projects_upload():
+    """Upload video file and generate project from it (ProjectGen)."""
+    global _generation_thread
+    game_maker = get_app_game_maker()
+    if 'file' not in request.files:
+        return jsonify({'error': 'No video file provided'}), 400
+    file = request.files['file']
+    project_name = request.form.get('project_name')
+    duration = float(request.form.get('duration', 5.0))
+    upload_dir = os.path.join('projects', '_uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    filepath = os.path.join(upload_dir, file.filename)
+    file.save(filepath)
+
+    # Configure video processor to use file
+    game_maker.config.video_source = filepath
+
+    def generation_task():
+        bundle = game_maker.generate_project_from_video(duration=duration, project_name=project_name, source_path=filepath)
+        game_maker.last_generation = bundle["result"]
+        # reset to webcam after
+        game_maker.config.video_source = 0
+        return bundle
+
+    _generation_thread = threading.Thread(target=generation_task)
+    _generation_thread.start()
+    return jsonify({'status': 'started', 'filepath': filepath, 'project_name': project_name})
+
+
+@app.route('/api/projects', methods=['GET'])
+def api_projects_list():
+    pm = get_app_game_maker().project_manager
+    projects = [p.to_dict() for p in pm.list_projects()]
+    return jsonify({'projects': projects, 'stats': pm.stats()})
+
+
+@app.route('/api/projects/<project_id>', methods=['GET'])
+def api_project_get(project_id):
+    pm = get_app_game_maker().project_manager
+    bundle = pm.get_project(project_id)
+    if not bundle:
+        return jsonify({'error': 'Project not found'}), 404
+    return jsonify(bundle)
+
+
+@app.route('/api/projects/<project_id>/load', methods=['POST'])
+def api_project_load(project_id):
+    game_maker = get_app_game_maker()
+    success = game_maker.load_project(project_id)
+    if success:
+        return jsonify({'status': 'success', 'project_id': project_id, 'game': game_maker.current_game.to_dict() if game_maker.current_game else None})
+    return jsonify({'error': 'Failed to load project'}), 500
+
+
+@app.route('/api/projects/<project_id>/world', methods=['GET'])
+def api_project_world(project_id):
+    pm = get_app_game_maker().project_manager
+    bundle = pm.get_project(project_id)
+    if not bundle: return jsonify({'error':'Project not found'}),404
+    # world stored as world.json or in game_design metadata
+    p = Path(f"projects/{project_id}/world.json")
+    if p.exists():
+        return jsonify(json.load(open(p)))
+    gd = bundle.get('game_design',{})
+    if 'world' in gd: return jsonify(gd['world'])
+    if 'metadata' in gd and 'world' in gd['metadata']: return jsonify(gd['metadata']['world'])
+    return jsonify({'error':'world not found — world code now required, regenerate project'}),404
+
+@app.route('/api/projects/<project_id>', methods=['DELETE'])
+def api_project_delete(project_id):
+    pm = get_app_game_maker().project_manager
+    ok = pm.delete_project(project_id)
+    if ok:
+        return jsonify({'status': 'deleted', 'project_id': project_id})
+    return jsonify({'error': 'not found'}), 404
+
+
 @app.route('/api/generate', methods=['POST'])
 def api_generate():
-    """Generate a new game."""
+    """Legacy: redirect to ProjectGen."""
     global _generation_thread
     
     game_maker = get_app_game_maker()
-    data = request.json
+    data = request.json or {}
     
-    duration = data.get('duration', 5.0)
+    duration = float(data.get('duration', 5.0))
+    project_name = data.get('project_name')
     
     def generation_task():
-        result = game_maker.generate_game_from_video(duration)
-        return result.to_dict()
+        bundle = game_maker.generate_project_from_video(duration=duration, project_name=project_name)
+        return bundle["result"].to_dict() if bundle["result"] else {}
     
     # Run generation in background
     _generation_thread = threading.Thread(target=generation_task)
     _generation_thread.start()
     
-    return jsonify({'status': 'started', 'message': 'Generation started in background'})
+    return jsonify({'status': 'started', 'message': 'Generation started via ProjectGen (video)', 'project_gen': True})
 
 
 @app.route('/api/generation/status')
@@ -230,9 +338,7 @@ def api_research_export():
 @app.route('/api/frame', methods=['POST'])
 def api_frame():
     """
-    Process a single frame (for testing).
-    
-    Accepts an image file and returns analysis results.
+    ProjectGen: Single frame treated as 1-frame video -> creates a Project.
     """
     game_maker = get_app_game_maker()
     
@@ -248,15 +354,19 @@ def api_frame():
     os.makedirs('temp', exist_ok=True)
     file.save(temp_path)
     
-    # Generate game from image
-    result = game_maker.generate_game_from_image(temp_path)
+    # Generate PROJECT from image (1-frame video)
+    bundle = game_maker.generate_project_from_image(temp_path, project_name=request.form.get('project_name'))
+    result = bundle["result"]
+    project = bundle["project"]
     
-    # Clean up
+    # Clean up temp (keep project copy via video_meta)
     if os.path.exists(temp_path):
-        os.remove(temp_path)
+        try:
+            os.remove(temp_path)
+        except: pass
     
     if result.success:
-        return jsonify(result.to_dict())
+        return jsonify({**result.to_dict(), "project": project.to_dict() if project else None, "project_gen": True})
     else:
         return jsonify({'error': result.error}), 500
 
@@ -272,6 +382,10 @@ def serve_generated_games(path):
     """Serve generated game files."""
     return send_from_directory('generated_games', path)
 
+
+@app.route('/api/backend/status')
+def api_backend_status():
+    return jsonify({"backend_token": "set" if has_token() else "missing", "preview": token_preview() if has_token() else None, "note": "Token only at backend; never exposed to frontend"})
 
 @app.route('/research_data/<path:path>')
 def serve_research_data(path):

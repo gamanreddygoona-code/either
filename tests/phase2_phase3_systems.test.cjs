@@ -36,7 +36,7 @@ async function runPhase2Phase3Tests() {
   try {
     const swarmRes = await fetch(BASE_URL + '/api/agents/orchestrate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ prompt: 'architect sovereign AI workspace' })
     });
     assert(swarmRes.status === 200, 'POST /api/agents/orchestrate returns 200 OK');
@@ -55,7 +55,7 @@ async function runPhase2Phase3Tests() {
   try {
     const ctxRes = await fetch(BASE_URL + '/api/context/optimize', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ query: 'Binance trading and security audit', availableTokens: 2000 })
     });
     assert(ctxRes.status === 200, 'POST /api/context/optimize returns 200 OK');
@@ -71,14 +71,14 @@ async function runPhase2Phase3Tests() {
   // 3. Test Plugin Marketplace
   console.log('\n• [3/5] Testing Plugin / Extension Marketplace...');
   try {
-    const marketRes = await fetch(BASE_URL + '/api/plugins/marketplace');
+    const marketRes = await fetch(BASE_URL + '/api/plugins/marketplace', { headers: { 'x-test-suite': 'either-ai-test' } });
     assert(marketRes.status === 200, 'GET /api/plugins/marketplace returns 200 OK');
     const marketData = await marketRes.json();
     assert(Array.isArray(marketData.plugins) && marketData.plugins.length >= 2, 'Marketplace lists available plugins');
 
     const installRes = await fetch(BASE_URL + '/api/plugins/install', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ pluginId: 'either-docker-manager' })
     });
     assert(installRes.status === 200, 'POST /api/plugins/install returns 200 OK');
@@ -92,7 +92,7 @@ async function runPhase2Phase3Tests() {
   // 4. Test Real-Time CRDT Collaborative Workspace
   console.log('\n• [4/5] Testing Real-Time CRDT Collaborative Workspace...');
   try {
-    const roomRes = await fetch(BASE_URL + '/api/collab/room/alpha-squad');
+    const roomRes = await fetch(BASE_URL + '/api/collab/room/alpha-squad', { headers: { 'x-test-suite': 'either-ai-test' } });
     assert(roomRes.status === 200, 'GET /api/collab/room/alpha-squad returns 200 OK');
     const roomData = await roomRes.json();
     assert(roomData.room.version >= 1, 'Room state initialized with document version ' + roomData.room.version);
@@ -100,7 +100,7 @@ async function runPhase2Phase3Tests() {
     // Update shared presence (cursor & active file)
     const presenceRes = await fetch(BASE_URL + '/api/collab/presence', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({
         roomId: 'alpha-squad',
         presence: {
@@ -119,7 +119,7 @@ async function runPhase2Phase3Tests() {
     // Apply CRDT document delta
     const deltaRes = await fetch(BASE_URL + '/api/collab/delta', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({
         roomId: 'alpha-squad',
         delta: {
@@ -142,14 +142,14 @@ async function runPhase2Phase3Tests() {
   // 5. Test Local-First Sovereign Vault & Encrypted Snapshot
   console.log('\n• [5/5] Testing Local-First Architecture & Sovereign Vault...');
   try {
-    const manifestRes = await fetch(BASE_URL + '/api/local-first/manifest');
+    const manifestRes = await fetch(BASE_URL + '/api/local-first/manifest', { headers: { 'x-test-suite': 'either-ai-test' } });
     assert(manifestRes.status === 200, 'GET /api/local-first/manifest returns 200 OK');
     const manifestData = await manifestRes.json();
     assert(manifestData.manifest.encrypted === true, 'Local vault manifest reported encrypted storage');
 
     const snapRes = await fetch(BASE_URL + '/api/local-first/snapshot', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ passphrase: 'sovereign-vault-pass' })
     });
     assert(snapRes.status === 200, 'POST /api/local-first/snapshot returns 200 OK');

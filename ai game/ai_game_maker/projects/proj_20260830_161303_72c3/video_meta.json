@@ -1,0 +1,13 @@
+{
+  "source_type": "webcam",
+  "source_path": null,
+  "fps": 10,
+  "resolution": [
+    640,
+    480
+  ],
+  "duration": 5,
+  "frames_captured": 50,
+  "frames_processed": 50,
+  "created_at": "2026-08-30T16:13:03"
+}

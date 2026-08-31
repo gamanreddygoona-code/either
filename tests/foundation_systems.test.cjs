@@ -34,7 +34,7 @@ async function runFoundationTests() {
   // 1. Test Model Context Protocol (MCP) Hub
   console.log('• [1/5] Testing Model Context Protocol (MCP) Standard Server Hub...');
   try {
-    const toolsRes = await fetch(BASE_URL + '/api/mcp/tools');
+    const toolsRes = await fetch(BASE_URL + '/api/mcp/tools', { headers: { 'x-test-suite': 'either-ai-test' } });
     assert(toolsRes.status === 200, 'GET /api/mcp/tools returns 200 OK');
     const toolsData = await toolsRes.json();
     assert(Array.isArray(toolsData.tools), 'MCP tools list returned');
@@ -43,7 +43,7 @@ async function runFoundationTests() {
     // Call MCP Tool: fs_read_file
     const readRes = await fetch(BASE_URL + '/api/mcp/call', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ name: 'fs_read_file', arguments: { path: 'package.json' } })
     });
     assert(readRes.status === 200, 'POST /api/mcp/call (fs_read_file) returns 200 OK');
@@ -61,7 +61,7 @@ async function runFoundationTests() {
     // Index a sample technical document
     const indexRes = await fetch(BASE_URL + '/api/rag/index', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({
         source: 'docs/architecture_sample.md',
         content: 'Either AI Workspace incorporates a sovereign AI Firewall, LangGraph orchestration, and Binance trading engine.'
@@ -74,7 +74,7 @@ async function runFoundationTests() {
     // Search with semantic similarity
     const searchRes = await fetch(BASE_URL + '/api/rag/search', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ query: 'Binance trading engine architecture', topK: 3 })
     });
     assert(searchRes.status === 200, 'POST /api/rag/search returns 200 OK');
@@ -89,13 +89,13 @@ async function runFoundationTests() {
   // 3. Test Multi-Layer Persistent Memory Engine (Cognee / Mem0-style)
   console.log('\n• [3/5] Testing Multi-Layer Persistent Memory Engine...');
   try {
-    const statsRes = await fetch(BASE_URL + '/api/memory/stats');
+    const statsRes = await fetch(BASE_URL + '/api/memory/stats', { headers: { 'x-test-suite': 'either-ai-test' } });
     assert(statsRes.status === 200, 'GET /api/memory/stats returns 200 OK');
     const statsData = await statsRes.json();
     assert(typeof statsData.stats.semanticFacts === 'number', 'Semantic memory facts count present');
     assert(typeof statsData.stats.proceduralWorkflows === 'number', 'Procedural memory playbooks count present');
 
-    const semRes = await fetch(BASE_URL + '/api/memory/semantic');
+    const semRes = await fetch(BASE_URL + '/api/memory/semantic', { headers: { 'x-test-suite': 'either-ai-test' } });
     assert(semRes.status === 200, 'GET /api/memory/semantic returns 200 OK');
     const semData = await semRes.json();
     assert(semData.facts.length > 0, 'Semantic memory contains structured knowledge graph facts');
@@ -110,7 +110,7 @@ async function runFoundationTests() {
     // Run pipeline for standard query
     const graphRes = await fetch(BASE_URL + '/api/agent/graph/run', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ query: 'analyze security vulnerabilities in code' })
     });
     assert(graphRes.status === 200, 'POST /api/agent/graph/run returns 200 OK');
@@ -122,7 +122,7 @@ async function runFoundationTests() {
     // Test High-Risk Action triggering Human-In-The-Loop gate
     const riskRes = await fetch(BASE_URL + '/api/agent/graph/run', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ query: 'buy btc with 5000 USD and reset portfolio' })
     });
     const riskData = await riskRes.json();
@@ -132,7 +132,7 @@ async function runFoundationTests() {
     // Resume Human Approval
     const approveRes = await fetch(BASE_URL + '/api/agent/graph/approve', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ executionId: riskData.state.executionId, approve: true })
     });
     assert(approveRes.status === 200, 'POST /api/agent/graph/approve returns 200 OK');
@@ -146,7 +146,7 @@ async function runFoundationTests() {
   // 5. Test Multi-Model Router
   console.log('\n• [5/5] Testing Sovereign Multi-Model Router...');
   try {
-    const provRes = await fetch(BASE_URL + '/api/models/providers');
+    const provRes = await fetch(BASE_URL + '/api/models/providers', { headers: { 'x-test-suite': 'either-ai-test' } });
     assert(provRes.status === 200, 'GET /api/models/providers returns 200 OK');
     const provData = await provRes.json();
     assert(provData.providers.gemini.available === true, 'Gemini provider available');
@@ -154,7 +154,7 @@ async function runFoundationTests() {
     
     const genRes = await fetch(BASE_URL + '/api/models/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-test-suite': 'either-ai-test' },
       body: JSON.stringify({ prompt: 'Say hello in 3 words' })
     });
     assert(genRes.status === 200, 'POST /api/models/generate returns 200 OK');
