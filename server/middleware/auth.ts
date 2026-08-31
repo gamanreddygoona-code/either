@@ -101,6 +101,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   // Public paths exempt from token requirement
   const publicPaths = [
     '/api/health',
+    '/api/config',
     '/api/auth/login',
     '/install.ps1',
     '/install.sh',

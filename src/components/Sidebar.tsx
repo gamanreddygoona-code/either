@@ -23,14 +23,15 @@ import {
   Wand2,
   Terminal,
   Layers,
-  ShieldCheck
+  ShieldCheck,
+  Settings
 } from "lucide-react";
 import { EitherLogo } from "./ConnectorIcons";
 import { ProjectItem, UserProfile } from "../types";
 
 interface SidebarProps {
-  activeView: "chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm" | "workflow" | "darkweb" | "protection";
-  onSelectView: (view: "chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm" | "workflow" | "darkweb" | "protection") => void;
+  activeView: "chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm" | "workflow" | "darkweb" | "protection" | "config";
+  onSelectView: (view: "chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm" | "workflow" | "darkweb" | "protection" | "config") => void;
   onNewChat: () => void;
   projects: ProjectItem[];
   user: UserProfile;
@@ -443,6 +444,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ></span>
           <span>{user.contextEnabled ? "Context enabled" : "Context disabled"}</span>
         </div>
+
+        {/* Workspace Config & Settings Trigger */}
+        <button
+          onClick={() => onSelectView("config")}
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            activeView === "config"
+              ? "bg-stone-900 text-white font-bold"
+              : "text-stone-600 hover:text-stone-900 hover:bg-[#f3ede1]"
+          }`}
+        >
+          <div className="flex items-center space-x-1.5">
+            <Settings className="w-3.5 h-3.5 text-stone-500" />
+            <span>Workspace Config</span>
+          </div>
+          <span className="text-[10px] font-mono opacity-60">/config</span>
+        </button>
 
         {/* Connected Apps Quick Trigger */}
         <button

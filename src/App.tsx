@@ -17,6 +17,7 @@ import { WorkflowCanvas } from "./components/WorkflowCanvas";
 import { DarkWebResearchView } from "./components/DarkWebResearchView";
 import { WindowsProtectionView } from "./components/WindowsProtectionView";
 import { AdminDashboardView } from "./components/AdminDashboardView";
+import { ConfigView } from "./components/ConfigView";
 import { SkillsMemoryDrawer } from "./components/SkillsMemoryDrawer";
 import { AuthModal } from "./components/AuthModal";
 import { LandingPage } from "./components/LandingPage";
@@ -45,7 +46,10 @@ export default function App() {
   });
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
-  const [activeView, setActiveView] = useState<"chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm" | "workflow" | "darkweb" | "protection" | "admin">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "search" | "meeting-notes" | "routines" | "project" | "servers" | "wifi-hardware" | "trading" | "browser-agent" | "sandbox" | "video-swarm" | "workflow" | "darkweb" | "protection" | "admin" | "config">(() => {
+    if (window.location.hash === "#config" || window.location.hash === "#settings" || window.location.pathname === "/config") return "config";
+    return "chat";
+  });
   const [connectors, setConnectors] = useState<AppConnector[]>(INITIAL_CONNECTORS);
   const [meetingNotes, setMeetingNotes] = useState<MeetingNote[]>(INITIAL_MEETING_NOTES);
   const [routines, setRoutines] = useState<Routine[]>(INITIAL_ROUTINES);
@@ -621,6 +625,10 @@ export default function App() {
 
           {activeView === "protection" && (
             <WindowsProtectionView />
+          )}
+
+          {activeView === "config" && (
+            <ConfigView />
           )}
         </main>
       </div>
