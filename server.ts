@@ -39,7 +39,7 @@ import { CollaborativeWorkspaceEngine } from "./server/collab/collaborativeWorks
 import { LocalFirstSyncEngine } from "./server/localFirst/syncEngine";
 import { rateLimiterMiddleware, detectPromptInjection, sanitizeAiOutput, logSecurityEvent, encryptSecret, decryptSecret } from "./server/security";
 import { PaymentTrackerEngine } from "./server/paymentTracker";
-import { requireAuth, requireAdmin, sanitizeAndValidateInputs, timingSafeCompare, signUserToken } from "./server/authMiddleware";
+import { requireAuth, requireAdmin, sanitizeAndValidateInputs, timingSafeCompare, signUserToken, verifyUserToken } from "./server/authMiddleware";
 import { authMiddleware } from "./server/middleware/auth";
 import { PlaywrightBrowserAgent } from "./server/browserAgent";
 import dns from "dns";
@@ -972,8 +972,7 @@ function ensureUserInStore(u: any) {
 }
 // Seed with current users
 ensureUserInStore(currentUser);
-try { ensureUserInStore(authenticatedUserProfile); } catch {}
-// Also seed a few demo users for dashboard
+// authenticatedUserProfile is defined later (line ~3699) — seeded there after OAuth init
 ["alice@example.com", "bob@example.com", "charlie@acme.com"].forEach(email=>{
   if (!ALL_USERS.has(email)) ALL_USERS.set(email, {
     id: email, name: email.split("@")[0].replace(/\b\w/g, (c)=>c.toUpperCase()), email, plan: "Start",
@@ -1008,7 +1007,7 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/admin/users", (_req, res) => {
   // Ensure current users are in store
   ensureUserInStore(currentUser);
-  try { ensureUserInStore(authenticatedUserProfile); } catch {}
+  try { if (typeof authenticatedUserProfile !== 'undefined') ensureUserInStore(authenticatedUserProfile); } catch {}
   const users = Array.from(ALL_USERS.values()).map(u=> {
     const usage = userTokenUsage.get(u.id) || u.tokenUsage;
     return { ...u, tokenUsage: usage || u.tokenUsage };
@@ -1064,30 +1063,80 @@ app.get("/api/user/usage", (_req, res) => {
 
 /* ================= auth ================= */
 
-app.get("/api/auth/me", (_req, res) => {
-  const usage = getTokenUsage();
-  const token = signUserToken({
-    userId: "gaman-sai-01",
-    email: currentUser.email || "gamanreddy.goona@gmail.com",
-    name: currentUser.name || "Gaman Sai",
-    role: "admin"
-  });
+app.get("/api/auth/me", (req, res) => {
+  const authHeader = (req.headers.authorization as string) || (req.headers['x-auth-token'] as string) || '';
+  let token = '';
+  if (authHeader && authHeader.startsWith('Bearer ')) token = authHeader.slice(7).trim();
+  else if (authHeader) token = authHeader.trim();
+  if (!token) token = (req.query.token as string) || (req.headers['x-session-token'] as string) || '';
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Missing token. Please login via POST /api/auth/login with valid email.' });
+  }
+  const decoded = verifyUserToken(token);
+  // Also allow valid SESSION_TOKEN / ADMIN_TOKEN as bearer for me (legacy)
+  const validSessionToken = process.env.SESSION_TOKEN || '';
+  const validAdminToken = process.env.EITHER_ADMIN_TOKEN || '';
+  let email = decoded?.email || '';
+  let name = decoded?.name || '';
+  let role = decoded?.role || 'user';
+  let userId = decoded?.userId || 'unknown';
+  if (!decoded) {
+    // Check legacy session/admin token via timingSafeCompare — treat as system user
+    if (token && validSessionToken && timingSafeCompare(token, validSessionToken)) {
+      email = currentUser.email || 'gamanreddy.goona@gmail.com';
+      name = currentUser.name || 'Gaman Sai';
+      role = 'admin';
+      userId = 'gaman-sai-01';
+    } else if (token && validAdminToken && timingSafeCompare(token, validAdminToken)) {
+      email = currentUser.email || 'gamanreddy.goona@gmail.com';
+      name = currentUser.name || 'Gaman Sai';
+      role = 'admin';
+      userId = 'gaman-sai-01';
+    } else {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    }
+  }
+
+  const emailKey = (email || '').toLowerCase();
+  const stored = ALL_USERS.get(emailKey);
+  const effectiveUser = stored ? { name: stored.name, email: stored.email, avatarUrl: stored.avatarUrl, plan: stored.plan, isAuthenticated: true } : { name: name || currentUser.name, email, avatarUrl: currentUser.avatarUrl, plan: currentUser.plan, isAuthenticated: true };
+  // Per-email token usage
+  let usage = userTokenUsage.get(emailKey);
+  if (!usage) {
+    const planLimit = getPlanLimit(effectiveUser.plan || currentUser.plan);
+    const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString();
+    usage = { used: 0, limit: planLimit, resetDate: nextReset, updatedAt: new Date().toISOString() };
+    userTokenUsage.set(emailKey, usage);
+  } else {
+    // Refresh reset if needed
+    if (new Date().toISOString() >= usage.resetDate) {
+      const planLimit = getPlanLimit(effectiveUser.plan || currentUser.plan);
+      usage.used = 0;
+      usage.limit = planLimit;
+      usage.resetDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString();
+      usage.updatedAt = new Date().toISOString();
+      userTokenUsage.set(emailKey, usage);
+    }
+  }
 
   res.json({
+    success: true,
     user: {
-      id: "gaman-sai-01",
-      name: currentUser.name,
-      email: currentUser.email,
-      avatarUrl: currentUser.avatarUrl,
-      plan: currentUser.plan,
-      isAuthenticated: currentUser.isAuthenticated,
-      token,
+      id: userId,
+      name: effectiveUser.name,
+      email: effectiveUser.email,
+      avatarUrl: (effectiveUser as any).avatarUrl || currentUser.avatarUrl,
+      plan: (effectiveUser as any).plan || currentUser.plan,
+      isAuthenticated: true,
+      role,
+      token, // echo valid token, do not mint new admin token without verification
       tokenUsage: {
         used: usage.used,
         limit: usage.limit,
         remaining: Math.max(0, usage.limit - usage.used),
         resetDate: usage.resetDate,
-        plan: currentUser.plan,
+        plan: (effectiveUser as any).plan || currentUser.plan,
         percentUsed: Math.round((usage.used / usage.limit) * 100),
       }
     }
@@ -1096,20 +1145,83 @@ app.get("/api/auth/me", (_req, res) => {
 
 app.post("/api/auth/login", (req, res) => {
   const { name, email, avatarUrl } = req.body || {};
-  if (name) currentUser.name = String(name).slice(0, 100);
-  if (email) currentUser.email = String(email).slice(0, 120);
-  if (avatarUrl) currentUser.avatarUrl = String(avatarUrl).slice(0, 500);
-  currentUser.isAuthenticated = true;
+  // Strict email validation — real format check
+  const rawEmail = String(email || '').trim().slice(0, 120).toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!rawEmail || !emailRegex.test(rawEmail)) {
+    return res.status(400).json({ success: false, error: 'Valid email is required (format: user@domain.com)' });
+  }
+  const safeName = String(name || rawEmail.split('@')[0] || 'User').trim().slice(0, 100).replace(/<[^>]*>/g, '');
+  const safeAvatar = String(avatarUrl || '').trim().slice(0, 500);
+  // Basic URL check for avatar
+  const safeAvatarUrl = safeAvatar && /^https?:\/\//i.test(safeAvatar) ? safeAvatar : currentUser.avatarUrl;
+
+  // Determine role — never trust client-supplied role; admin only for configured owner
+  const ownerEmail = (process.env.EITHER_ADMIN_EMAIL || currentUser.email || 'gamanreddy.goona@gmail.com').toLowerCase();
+  const isAdmin = rawEmail === ownerEmail;
+  const role: 'admin' | 'user' = isAdmin ? 'admin' : 'user';
+
+  // Create deterministic userId from email hash (stable per user)
+  const userId = 'user-' + crypto.createHash('sha256').update(rawEmail).digest('hex').slice(0, 12);
+
+  // Persist per-user record (real multi-user)
+  const userRecord: any = {
+    id: userId,
+    name: safeName,
+    email: rawEmail,
+    avatarUrl: safeAvatarUrl,
+    plan: isAdmin ? currentUser.plan : 'Start',
+    isAuthenticated: true,
+    role,
+    createdAt: new Date().toISOString(),
+  };
+  ALL_USERS.set(rawEmail.toLowerCase(), {
+    ...ALL_USERS.get(rawEmail.toLowerCase()),
+    ...userRecord,
+    tokenUsage: ALL_USERS.get(rawEmail.toLowerCase())?.tokenUsage || { used: 0, limit: getPlanLimit(userRecord.plan), remaining: getPlanLimit(userRecord.plan), resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), plan: userRecord.plan }
+  });
+  // Ensure token usage entry exists
+  if (!userTokenUsage.has(rawEmail.toLowerCase())) {
+    const planLimit = getPlanLimit(userRecord.plan);
+    userTokenUsage.set(rawEmail.toLowerCase(), { used: 0, limit: planLimit, resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), updatedAt: new Date().toISOString() });
+  }
+  // Update global currentUser only if this is the owner (preserves single-machine UX) — otherwise keep global separate
+  if (isAdmin) {
+    currentUser.name = safeName;
+    currentUser.email = rawEmail;
+    currentUser.avatarUrl = safeAvatarUrl;
+    currentUser.isAuthenticated = true;
+  }
 
   const token = signUserToken({
-    userId: "gaman-sai-01",
-    email: currentUser.email || "gamanreddy.goona@gmail.com",
-    name: currentUser.name || "Gaman Sai",
-    role: "admin"
+    userId,
+    email: rawEmail,
+    name: safeName,
+    role
   });
 
-  pushLog("success", "AuthSession", currentUser.email || "local", `JWT Session started for ${currentUser.name}.`);
-  res.json({ success: true, user: currentUser, token });
+  const usage = userTokenUsage.get(rawEmail.toLowerCase())!;
+  pushLog("success", "AuthSession", rawEmail, `JWT Session started for ${safeName} (${role}).`);
+  res.json({
+    success: true,
+    user: {
+      id: userId,
+      name: safeName,
+      email: rawEmail,
+      avatarUrl: safeAvatarUrl,
+      plan: userRecord.plan,
+      isAuthenticated: true,
+      role,
+      tokenUsage: {
+        used: usage.used,
+        limit: usage.limit,
+        remaining: Math.max(0, usage.limit - usage.used),
+        resetDate: usage.resetDate,
+        plan: userRecord.plan,
+      }
+    },
+    token
+  });
 });
 
 /* ================= firebase (honest status) ================= */
@@ -1124,13 +1236,46 @@ let firebaseCloudSyncState = {
 };
 
 app.post("/api/firebase/auth/sync", (req, res) => {
-  const { uid, name, email, avatarUrl, provider } = req.body;
-  if (name) currentUser.name = name;
-  if (email) currentUser.email = email;
-  if (avatarUrl) currentUser.avatarUrl = avatarUrl;
-  currentUser.isAuthenticated = true;
-  pushLog("success", "FirebaseAuth", email || "unknown", `Authenticated via Firebase (${provider || "google"}): ${email || name}.`);
-  res.json({ success: true, user: currentUser, firebaseUid: uid, provider: provider || "google" });
+  const { uid, name, email, avatarUrl, provider } = req.body || {};
+  // Real validation — require Firebase uid and valid email
+  const rawEmail = String(email || '').trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!uid || String(uid).length < 8) {
+    return res.status(400).json({ success: false, error: 'Missing or invalid Firebase uid' });
+  }
+  if (!rawEmail || !emailRegex.test(rawEmail)) {
+    return res.status(400).json({ success: false, error: 'Valid email required for Firebase sync' });
+  }
+  const safeName = String(name || rawEmail.split('@')[0]).trim().slice(0, 100).replace(/<[^>]*>/g, '');
+  const safeAvatar = String(avatarUrl || '').trim().slice(0, 500);
+  const ownerEmail = (process.env.EITHER_ADMIN_EMAIL || currentUser.email || 'gamanreddy.goona@gmail.com').toLowerCase();
+  const isAdmin = rawEmail === ownerEmail;
+  const role: 'admin' | 'user' = isAdmin ? 'admin' : 'user';
+  const userId = 'firebase-' + String(uid).slice(0, 16);
+
+  const userRecord: any = {
+    id: userId,
+    name: safeName,
+    email: rawEmail,
+    avatarUrl: /^https?:\/\//i.test(safeAvatar) ? safeAvatar : '',
+    plan: isAdmin ? currentUser.plan : 'Start',
+    isAuthenticated: true,
+    role,
+  };
+  ALL_USERS.set(rawEmail, { ...ALL_USERS.get(rawEmail), ...userRecord });
+  if (!userTokenUsage.has(rawEmail)) {
+    const planLimit = getPlanLimit(userRecord.plan);
+    userTokenUsage.set(rawEmail, { used: 0, limit: planLimit, resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), updatedAt: new Date().toISOString() });
+  }
+  if (isAdmin) {
+    currentUser.name = safeName;
+    currentUser.email = rawEmail;
+    if (safeAvatar) currentUser.avatarUrl = safeAvatar;
+    currentUser.isAuthenticated = true;
+  }
+  const token = signUserToken({ userId, email: rawEmail, name: safeName, role });
+  pushLog("success", "FirebaseAuth", rawEmail, `Authenticated via Firebase (${provider || "google"}): ${rawEmail}.`);
+  res.json({ success: true, user: { ...userRecord, token }, firebaseUid: uid, provider: provider || "google", token });
 });
 
 app.post("/api/firebase/agents/sync", (_req, res) => {
@@ -1522,13 +1667,17 @@ function googleOAuthConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 function googleRedirectUri(req?: any) {
-  if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL.replace(/^\uFEFF/, "").trim();
-  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI.replace(/^\uFEFF/, "").trim();
+  // Prioritize localhost detection for local dev — even if GOOGLE_CALLBACK_URL is set for prod
   if (req) {
     const host = req.headers?.["x-forwarded-host"] || (req.get ? req.get("host") : (req.headers && req.headers.host));
     if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
       return `http://${host}/auth/google/callback`;
     }
+  }
+  if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL.replace(/^\uFEFF/, "").trim();
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI.replace(/^\uFEFF/, "").trim();
+  if (req) {
+    const host = req.headers?.["x-forwarded-host"] || (req.get ? req.get("host") : (req.headers && req.headers.host));
     if (host) {
       const proto = req.headers?.["x-forwarded-proto"] || "https";
       return `${proto}://${host}/auth/google/callback`;
@@ -1726,8 +1875,18 @@ app.get("/auth/google/callback", async (req, res) => {
   });
 
   pushLog("success", "GoogleAuth", "Google", `Google connected for ${email}`);
+  // Issue real JWT for frontend — no fake tokens
+  const googleUserId = 'google-' + crypto.createHash('sha256').update(email.toLowerCase()).digest('hex').slice(0,12);
+  const ownerEmail = (process.env.EITHER_ADMIN_EMAIL || 'gamanreddy.goona@gmail.com').toLowerCase();
+  const googleRole = email.toLowerCase() === ownerEmail ? 'admin' as const : 'user' as const;
+  const googleJwt = signUserToken({ userId: googleUserId, email: email.toLowerCase(), name: email.split('@')[0], role: googleRole });
+  // Seed user store
+  ALL_USERS.set(email.toLowerCase(), { id: googleUserId, name: email.split('@')[0], email: email.toLowerCase(), plan: 'Start', avatarUrl: '', isAuthenticated: true, role: googleRole });
+  if (!userTokenUsage.has(email.toLowerCase())) {
+    userTokenUsage.set(email.toLowerCase(), { used: 0, limit: getPlanLimit('Start'), resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), updatedAt: new Date().toISOString() });
+  }
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(renderOAuthSuccessHtml("Google", email));
+  res.send(renderOAuthSuccessHtml("Google", email, googleJwt));
 });
 
 function cleanEmailText(text: string): string {
@@ -1826,13 +1985,16 @@ function githubOAuthConfigured() {
   return Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 }
 function githubRedirectUri(req?: any) {
-  if (process.env.GITHUB_CALLBACK_URL) return process.env.GITHUB_CALLBACK_URL.replace(/^\uFEFF/, "").trim();
-  if (process.env.GITHUB_REDIRECT_URI) return process.env.GITHUB_REDIRECT_URI.replace(/^\uFEFF/, "").trim();
   if (req) {
     const host = req.headers?.["x-forwarded-host"] || (req.get ? req.get("host") : (req.headers && req.headers.host));
     if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
       return `http://${host}/auth/github/callback`;
     }
+  }
+  if (process.env.GITHUB_CALLBACK_URL) return process.env.GITHUB_CALLBACK_URL.replace(/^\uFEFF/, "").trim();
+  if (process.env.GITHUB_REDIRECT_URI) return process.env.GITHUB_REDIRECT_URI.replace(/^\uFEFF/, "").trim();
+  if (req) {
+    const host = req.headers?.["x-forwarded-host"] || (req.get ? req.get("host") : (req.headers && req.headers.host));
     if (host) {
       const proto = req.headers?.["x-forwarded-proto"] || "https";
       return `${proto}://${host}/auth/github/callback`;
@@ -1914,8 +2076,17 @@ app.get("/auth/github/callback", async (req, res) => {
       isAuthenticated: true,
     };
     pushLog("success", "GitHubOAuth", "GitHub", `${u.login} logged in via GitHub OAuth. Connector activated.`);
+    const ghEmail = (u.email || `${u.login}@github.local`).toLowerCase();
+    const ghUserId = 'github-' + crypto.createHash('sha256').update(ghEmail).digest('hex').slice(0,12);
+    const ownerGhEmail = (process.env.EITHER_ADMIN_EMAIL || 'gamanreddy.goona@gmail.com').toLowerCase();
+    const ghRole = ghEmail === ownerGhEmail ? 'admin' as const : 'user' as const;
+    const ghJwt = signUserToken({ userId: ghUserId, email: ghEmail, name: u.name || u.login, role: ghRole });
+    ALL_USERS.set(ghEmail, { id: ghUserId, name: u.name || u.login, email: ghEmail, avatarUrl: u.avatar_url || '', plan: 'Start', isAuthenticated: true, role: ghRole });
+    if (!userTokenUsage.has(ghEmail)) {
+      userTokenUsage.set(ghEmail, { used: 0, limit: getPlanLimit('Start'), resetDate: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toISOString(), updatedAt: new Date().toISOString() });
+    }
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.send(renderOAuthSuccessHtml("GitHub", `github.com/${u.login}`));
+    res.send(renderOAuthSuccessHtml("GitHub", `github.com/${u.login}`, ghJwt));
   } catch (e: any) {
     res.status(500).send(`GitHub OAuth failed: ${e.message}`);
   }
@@ -3560,8 +3731,9 @@ let authenticatedUserProfile = {
   lastLogin: new Date().toISOString(),
 };
 
-function renderOAuthSuccessHtml(providerName: string, accountEmail: string) {
+function renderOAuthSuccessHtml(providerName: string, accountEmail: string, jwtToken: string = "") {
   const publicBase = process.env.PUBLIC_BASE_URL || "https://either-ai.vercel.app";
+  const safeToken = (jwtToken || "").replace(/"/g, '\\"');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3600,12 +3772,15 @@ function renderOAuthSuccessHtml(providerName: string, accountEmail: string) {
     };
     try {
       localStorage.setItem("either_user", JSON.stringify(user));
-      localStorage.setItem("either_auth_token", "either_live_token");
+      if ("${safeToken}") {
+        localStorage.setItem("either_token", "${safeToken}");
+        localStorage.setItem("either_auth_token", "${safeToken}");
+      }
       localStorage.setItem("either_oauth_toast", "Connected " + "${providerName}" + " successfully!");
     } catch(e) {}
     if (window.opener && window.opener !== window) {
       try {
-        window.opener.postMessage({ type: "EITHER_AUTH_SUCCESS", provider: "${providerName.toLowerCase()}", user }, "*");
+        window.opener.postMessage({ type: "EITHER_AUTH_SUCCESS", provider: "${providerName.toLowerCase()}", user, token: "${safeToken}" }, "*");
       } catch(e) {}
       setTimeout(() => {
         try { window.close(); } catch(e) {}

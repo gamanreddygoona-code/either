@@ -2,9 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+const JWT_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET || 'either-ai-sovereign-master-secret-key-2026';
 
 const ENV_PATH = path.resolve(process.cwd(), '.env');
 
@@ -102,6 +105,9 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   const publicPaths = [
     '/api/health',
     '/api/config',
+    '/api/connectors',
+    '/api/auth/me',
+    '/api/user/usage',
     '/api/auth/login',
     '/install.ps1',
     '/install.sh',
@@ -121,9 +127,11 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
   const token = bearerMatch ? bearerMatch[1].trim() : (req.query.token as string || req.headers['x-session-token'] as string || '');
 
-  // Allow test suite with test header
+  // Restricted test-suite bypass — only in explicit test mode, never in production
   if (req.headers['x-test-suite'] === 'either-ai-test') {
-    return next();
+    const allowTestBypass = process.env.NODE_ENV === 'test' || process.env.ALLOW_TEST_BYPASS === 'true';
+    if (allowTestBypass) return next();
+    // In production/dev without explicit flag, fall through to normal auth check
   }
 
   if (!token) {
@@ -138,13 +146,31 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
   const isValidSession = timingSafeEqualStr(token, validSessionToken);
   const isValidAdmin = validAdminToken ? timingSafeEqualStr(token, validAdminToken) : false;
-  const isDevToken = token.startsWith('eyJ') || token.startsWith('either_') || token.length >= 16;
 
-  if (!isValidSession && !isValidAdmin && !isDevToken) {
+  // Real JWT verification — signature must be valid, not just prefix match
+  let isValidJWT = false;
+  if (!isValidSession && !isValidAdmin) {
+    try {
+      jwt.verify(token, JWT_SECRET);
+      isValidJWT = true;
+    } catch {
+      isValidJWT = false;
+    }
+  }
+
+  if (!isValidSession && !isValidAdmin && !isValidJWT) {
     return res.status(401).json({
       success: false,
       error: 'Unauthorized: Invalid token provided.'
     });
+  }
+
+  // Attach decoded user for downstream handlers when JWT is valid
+  if (isValidJWT) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      (req as any).user = decoded;
+    } catch {}
   }
 
   next();

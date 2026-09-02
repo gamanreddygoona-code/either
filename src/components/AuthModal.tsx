@@ -74,9 +74,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        onUserUpdate(data.user);
-        setSuccessMsg("Profile updated successfully.");
+        const token = data.token || data.user?.token || "";
+        if (token) try { localStorage.setItem("either_token", token); } catch {}
+        const userWithToken = token ? { ...data.user, token } : data.user;
+        try { localStorage.setItem("either_user", JSON.stringify(userWithToken)); } catch {}
+        onUserUpdate({ ...data.user, isAuthenticated: true, token } as any);
+        setSuccessMsg("Profile authenticated — real JWT issued.");
         setTimeout(() => onClose(), 1200);
+      } else {
+        setSuccessMsg(data.error || "Authentication failed — check email format.");
       }
     } catch (err) {
       console.error(err);

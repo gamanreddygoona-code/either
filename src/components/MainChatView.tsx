@@ -25,7 +25,8 @@ import {
   ClipboardList,
   Brain,
   Clapperboard,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle
 } from "lucide-react";
 import { 
   AppIconRenderer, 

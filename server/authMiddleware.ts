@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { logSecurityEvent } from './security';
 
 const JWT_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET || 'either-ai-sovereign-master-secret-key-2026';
-const ADMIN_TOKEN = process.env.EITHER_ADMIN_TOKEN || '39302e2703da53f49f05633c42873bcfe21f97de04f87f4fc4d8d57b6ae97f2f';
+const ADMIN_TOKEN = process.env.EITHER_ADMIN_TOKEN || '';
 
 export interface AuthUser {
   userId: string;
@@ -82,13 +82,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     token = authHeader.substring(7).trim();
   } else if (customHeader) {
     token = customHeader.trim();
-  }
-
-  // If running on localhost development with default user, authorize default user
-  const isLocalhost = req.ip === '127.0.0.1' || req.ip === '::1' || req.hostname === 'localhost';
-  if (!token && isLocalhost && process.env.NODE_ENV !== 'production') {
-    req.user = { userId: 'local-dev', email: 'gamanreddy.goona@gmail.com', role: 'admin' };
-    return next();
   }
 
   if (!token) {

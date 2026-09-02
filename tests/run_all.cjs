@@ -21,7 +21,7 @@ async function main() {
     const serverFile = path.resolve(__dirname, '../dist/server.cjs');
     serverProcess = spawn(process.execPath, [serverFile], {
       cwd: path.resolve(__dirname, '..'),
-      env: { ...process.env, PORT: '3000' },
+      env: { ...process.env, PORT: '3000', ALLOW_TEST_BYPASS: 'true', NODE_ENV: 'test' },
       detached: false,
       stdio: 'inherit'
     });

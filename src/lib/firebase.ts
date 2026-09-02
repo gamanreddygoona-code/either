@@ -25,51 +25,36 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope("https://www.googleapis.com/auth/userinfo.profile");
 googleProvider.addScope("https://www.googleapis.com/auth/userinfo.email");
 
-// Real Google Sign In Handler
+// Real Google Sign In Handler — no hardcoded fallback, real error propagation
 export async function signInWithGoogle(): Promise<{ user: any; error?: string }> {
-  try {
-    // Check if on Desktop or direct backend sync available
-    const directRes = await fetch("/api/auth/google", { method: "GET" });
-    if (directRes.ok) {
-      const data = await directRes.json();
-      if (data.success && data.user) {
-        return { user: data.user };
-      }
-    }
-  } catch (e) {}
-
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
-    
-    // Sync with Either backend server
+    if (!user.email) {
+      return { user: null, error: 'Google sign-in succeeded but no email returned — check OAuth scopes.' };
+    }
+    // Sync with Either backend server — server validates uid+email
     const syncRes = await fetch("/api/firebase/auth/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid: user.uid,
-        name: user.displayName || "Gaman Sai",
-        email: user.email || "gamanreddy.goona@gmail.com",
-        avatarUrl: user.photoURL || "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
+        name: user.displayName || user.email.split('@')[0],
+        email: user.email,
+        avatarUrl: user.photoURL || "",
         provider: "google",
       }),
     });
     const syncData = await syncRes.json();
-
+    if (!syncRes.ok || !syncData.success) {
+      return { user: null, error: syncData.error || 'Backend Firebase sync failed' };
+    }
     return { user: syncData.user || user };
   } catch (err: any) {
-    console.warn("Using verified Google Profile sync fallback:", err);
-    const fallbackRes = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "Gaman Sai",
-        email: "gamanreddy.goona@gmail.com",
-        avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
-      }),
-    });
-    const fallbackData = await fallbackRes.json();
-    return { user: fallbackData.user || { name: "Gaman Sai", email: "gamanreddy.goona@gmail.com", avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c", isAuthenticated: true } };
+    const msg = err?.message || String(err);
+    // Firebase error codes: auth/popup-closed-by-user, auth/cancelled-popup-request, etc.
+    console.error("Firebase Google sign-in failed:", msg);
+    return { user: null, error: msg };
   }
 }
 

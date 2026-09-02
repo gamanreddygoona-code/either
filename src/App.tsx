@@ -71,14 +71,14 @@ export default function App() {
       }
     } catch (e) {}
     return {
-      name: "Gaman Sai",
-      email: "gamanreddy.goona@gmail.com",
+      name: "Guest",
+      email: "",
       plan: "Start",
       avatarGradient: "from-purple-400 via-pink-300 to-cyan-300",
-      avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIS8iB_f_gPjV_qV1w5B=s96-c",
+      avatarUrl: "",
       version: "0.84.17",
       contextEnabled: true,
-      isAuthenticated: true,
+      isAuthenticated: false,
       tokenUsage: {
         used: 0,
         limit: 100000,
@@ -89,19 +89,24 @@ export default function App() {
     };
   });
 
-  // Listen for OAuth completion from popup windows
+  // Listen for OAuth completion from popup windows — real JWT handling
   useEffect(() => {
     const handleAuthMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === "EITHER_AUTH_SUCCESS") {
+        if (event.data.token) {
+          try { localStorage.setItem("either_token", event.data.token); } catch {}
+        }
         if (event.data.user) {
-          const newUser = { ...user, ...event.data.user, isAuthenticated: true };
-          setUser(newUser);
+          const token = event.data.token || ((): string => { try { return localStorage.getItem("either_token")||"";} catch {return ""}})();
+          const newUser = { ...user, ...event.data.user, isAuthenticated: true, token } as any;
+          setUser(newUser as any);
           try {
             localStorage.setItem("either_user", JSON.stringify(newUser));
           } catch (e) {}
         }
-        // Force refresh connectors
-        fetch("/api/connectors")
+        // Force refresh connectors with real token
+        const t = (()=>{ try{ return localStorage.getItem("either_token")||"";}catch{return"";}})();
+        fetch("/api/connectors", t?{headers:{Authorization:`Bearer ${t}`}}:{})
           .then((res) => res.json())
           .then((data) => {
             if (data.connectors) {
@@ -152,22 +157,25 @@ export default function App() {
     };
   }, []);
 
-  // Fetch live user & connector status from server
+  // Fetch live user & connector status from server — real auth: Bearer token required
   useEffect(() => {
-    fetch("/api/auth/me")
+    const storedToken = (() => { try { return localStorage.getItem("either_token") || ""; } catch { return ""; } })();
+    const authHeaders: Record<string,string> = storedToken ? { Authorization: `Bearer ${storedToken}` } : {};
+    fetch("/api/auth/me", storedToken ? { headers: authHeaders } : {})
       .then((res) => res.json())
       .then((data) => {
-        if (data.user) {
+        if (data.success && data.user) {
           setUser((prev) => ({ ...prev, ...data.user, tokenUsage: data.user.tokenUsage || prev.tokenUsage }));
           try {
             localStorage.setItem("either_user", JSON.stringify(data.user));
+            if (data.user.token) localStorage.setItem("either_token", data.user.token);
           } catch (e) {}
         }
       })
       .catch((err) => console.warn("Auth fetch:", err));
 
-    // Fetch Start plan token usage (100k/month) — refresh on mount
-    fetch("/api/user/usage")
+    // Fetch Start plan token usage (100k/month) — refresh on mount (requires token)
+    fetch("/api/user/usage", storedToken ? { headers: authHeaders } : {})
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.usage) {
@@ -188,7 +196,9 @@ export default function App() {
       .catch(() => {});
 
     const fetchStatus = () => {
-      fetch("/api/connectors")
+      const t = (() => { try { return localStorage.getItem("either_token") || ""; } catch { return ""; } })();
+      const h: Record<string,string> = t ? { Authorization: `Bearer ${t}` } : {};
+      fetch("/api/connectors", t ? { headers: h } : {})
         .then((res) => res.json())
         .then((data) => {
           if (data.connectors) {
@@ -270,9 +280,10 @@ export default function App() {
     }
 
     try {
+      const t = (()=>{ try{ return localStorage.getItem("either_token")||"";}catch{return"";}})();
       const res = await fetch(`/api/connectors/${id}/connect`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(t?{Authorization:`Bearer ${t}`}:{}) },
         body: JSON.stringify({ account: connectedAccount, credentials }),
       });
       const data = await res.json();
@@ -288,9 +299,10 @@ export default function App() {
 
   const handleSync = async (id: string) => {
     try {
+      const t = (()=>{ try{ return localStorage.getItem("either_token")||"";}catch{return"";}})();
       const res = await fetch(`/api/connectors/${id}/sync`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(t?{Authorization:`Bearer ${t}`}:{}) },
       });
       const data = await res.json();
       if (data.success) {
@@ -305,9 +317,10 @@ export default function App() {
 
   const handleDisconnect = async (id: string) => {
     try {
+      const t = (()=>{ try{ return localStorage.getItem("either_token")||"";}catch{return"";}})();
       const res = await fetch(`/api/connectors/${id}/disconnect`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(t?{Authorization:`Bearer ${t}`}:{}) },
       });
       const data = await res.json();
       if (data.success) {
@@ -355,9 +368,10 @@ export default function App() {
             .join("\n")
         : "";
 
+      const t = (()=>{ try{ return localStorage.getItem("either_token")||"";}catch{return"";}})();
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(t?{Authorization:`Bearer ${t}`}:{}) },
         body: JSON.stringify({
           prompt: content,
           history: currentTab.messages,
@@ -409,11 +423,14 @@ export default function App() {
       }
 
       // Also refresh usage via dedicated endpoint for accuracy
-      fetch("/api/user/usage").then(r=>r.json()).then(d=>{
-        if(d.success && d.usage){
-          setUser(prev=> ({ ...prev, tokenUsage: { used: d.usage.used, limit: d.usage.limit, remaining: d.usage.remaining, resetDate: d.usage.resetDate, plan: d.usage.plan, percentUsed: d.usage.percentUsed } }));
-        }
-      }).catch(()=>{});
+      {
+        const tt = (()=>{ try{ return localStorage.getItem("either_token")||"";}catch{return"";}})();
+        fetch("/api/user/usage", tt?{headers:{Authorization:`Bearer ${tt}`}}:{}).then(r=>r.json()).then(d=>{
+          if(d.success && d.usage){
+            setUser(prev=> ({ ...prev, tokenUsage: { used: d.usage.used, limit: d.usage.limit, remaining: d.usage.remaining, resetDate: d.usage.resetDate, plan: d.usage.plan, percentUsed: d.usage.percentUsed } }));
+          }
+        }).catch(()=>{});
+      }
 
       const assistantMsg: ChatMessage = {
         id: `msg-${Date.now()}-ai`,
